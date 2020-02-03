@@ -7,9 +7,16 @@ Start by configuring the notebook:
 import wget
 import geopandas
 import os
+import rasterio
+import sys
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from pathlib import Path
 from zipfile import ZipFile
+from tqdm.autonotebook import tqdm
+
+from utils import RasterstatsMultiProc
 
 # Automatically prints execution time for the individual cells
 %load_ext autotime
@@ -23,6 +30,10 @@ PROJ_PATH = Path.cwd().parent
 
 # Define which field polygons should be used for analysis (2017 to 2019 seem to follow the same metadata format)
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
+
+# Define global flags
+MULTI_PROC_ZONAL_STATS = False
+ALL_TOUCHED = False
 ```
 
 ---
@@ -117,5 +128,81 @@ for df_name, df in df_all.items():
 Calculate zonal statistics for the the potato fields for the different radar data measurements:
 
 ```python
+tif = list((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))[0]
+with rasterio.open(tif) as src:
+    tif_crs = src.crs
+    print("Projection used is: " + str(tif_crs))
 
+for df_name, df in df_potato.items():
+    # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
+    df_potato[df_name] = df_potato[df_name].to_crs({'init': tif_crs})
+```
+
+```python
+tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
+df_potato_stats = df_potato.copy()
+
+for df_name, df in df_potato.items(): # Loop over all field polygon years
+    pkl_name = df_name + '_stats' 
+    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
+    if pkl_path.exists():
+        print("Zonal statistics have already been calculated for: " + df_name)
+    else:
+        print("Calculating zonal statistics for: " + df_name)
+        df = df.head(20)
+        for tif in tqdm(tifs):  # Loop over all Sentinel-1 images
+            for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
+                rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
+
+                if MULTI_PROC_ZONAL_STATS:
+                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc()     
+                else:
+                    results_df = rasterstatsmulti.calc_zonal_stats(band=band, prog_bar=False) 
+
+                del rasterstatsmulti
+
+                stats_cols = {
+                    'min': tif.stem + '_B' + str(band) + '_min',
+                    'max': tif.stem + '_B' + str(band) + '_max',
+                    'mean': tif.stem + '_B' + str(band) + '_mean',
+                    'std': tif.stem + '_B' + str(band) + '_std',
+                    'median': tif.stem + '_B' + str(band) + '_median',
+                }
+
+                results_df = results_df.rename(columns=stats_cols)
+
+                # Note: The * operator iterates through the list (https://stackoverflow.com/a/56736691/12045808)
+                df_potato_stats[df_name] = df_potato_stats[df_name].merge(results_df[['id', *stats_cols.values()]], left_on='id', right_on='id')
+
+        if not shp_path.parent.exists():
+            os.makedirs(shp_path.parent)
+
+        # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
+        #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
+        #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
+        df_potato_stats[df_name].to_pickle(pkl_path) 
+```
+
+```python
+df_potato_stats['FieldPolygons2017'].head(50)
+```
+
+```python
+df_potato_stats = {}
+for df_name in FIELD_POLYGONS:
+    pkl_name = df_name + '_stats'
+    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
+    df = pd.read_pickle(pkl_path)
+    df_potato_stats[df_name] = df
+    
+
+x = []
+for column in df_potato_stats['FieldPolygons2017']:
+    if 'S1A' in column and 'B1_mean' in column:
+        value = df_potato_stats['FieldPolygons2017'][column].loc[8]
+        x.append(value)
+    #print(df_potato_stats[column])
+    
+print(x)
+plt.plot(x)
 ```
