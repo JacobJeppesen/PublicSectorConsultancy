@@ -149,7 +149,7 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
-        df = df.head(20)
+        #df = df.head(20)  # For debugging to (ie. only process 20 fields)
         for tif in tqdm(tifs):  # Loop over all Sentinel-1 images
             for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
                 rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
@@ -184,7 +184,7 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
 ```
 
 ```python
-df_potato_stats['FieldPolygons2017'].head(50)
+df_potato_stats['FieldPolygons2017'].head(5)
 ```
 
 ```python
