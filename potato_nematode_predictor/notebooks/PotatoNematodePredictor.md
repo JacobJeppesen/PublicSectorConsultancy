@@ -9,6 +9,7 @@ import geopandas
 import os
 import rasterio
 import sys
+import xarray
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -181,6 +182,80 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
         #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
         df_potato_stats[df_name].to_pickle(pkl_path) 
+```
+
+```python
+# We now want to create an xarray dataset based on the dataframe, with the zonal statistics as extra dimensions
+tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
+df_potato_stats = df_potato.copy()
+
+for df_name, df in df_potato.items(): # Loop over all field polygon years
+    pkl_name = df_name + '_stats_multiindex' 
+    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
+    #if pkl_path.exists():
+    if False:
+        print("Zonal statistics have already been calculated for: " + df_name)
+    else:
+        print("Calculating zonal statistics for: " + df_name)
+        df = df.head(20)  # For debugging (ie. only process 20 fields)
+        df = df.set_index('id')
+        ds = df.to_xarray()
+        '''
+        #for tif in tqdm(tifs):  # Loop over all Sentinel-1 images
+        for tif in tqdm(tifs[0:4]):  # Loop over all Sentinel-1 images
+            # Get metadata for satellite pass from the filename of the .tif file
+            satellite = tif.stem[0:3]
+            date = tif.stem[4:12]
+            pass_mode = tif.stem[20:23]
+            relative_orbit = tif.stem[24:27]
+            
+            # Perform zonal statistics on all bands
+            for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
+                rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
+
+                if MULTI_PROC_ZONAL_STATS:
+                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc()     
+                else:
+                    results_df = rasterstatsmulti.calc_zonal_stats(band=band, prog_bar=False) 
+
+                del rasterstatsmulti
+
+                stats_cols = {
+                    'min': tif.stem + '_B' + str(band) + '_min',
+                    'max': tif.stem + '_B' + str(band) + '_max',
+                    'mean': tif.stem + '_B' + str(band) + '_mean',
+                    'std': tif.stem + '_B' + str(band) + '_std',
+                    'median': tif.stem + '_B' + str(band) + '_median',
+                }
+
+                results_df = results_df.rename(columns=stats_cols)
+
+                # Note: The * operator iterates through the list (https://stackoverflow.com/a/56736691/12045808)
+                df_potato_stats[df_name] = df_potato_stats[df_name].merge(results_df[['id', *stats_cols.values()]], left_on='id', right_on='id')
+        '''
+
+        if not pkl_path.parent.exists():
+            os.makedirs(pkl_path.parent)
+
+        # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
+        #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
+        #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
+        df_potato_stats[df_name].to_pickle(pkl_path) 
+    break
+```
+
+```python
+ds
+```
+
+```python
+print(ds['imk_areal'][2].values)
+```
+
+```python
+ds.expand_dims('stats')
+ds['stats'] = 5
+print(ds['stats'].values)
 ```
 
 ```python
