@@ -9,7 +9,7 @@ import geopandas
 import os
 import rasterio
 import sys
-import xarray
+import xarray as xr
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -25,6 +25,9 @@ from utils import RasterstatsMultiProc
 # Automatically reloads functions defined in external files
 %load_ext autoreload
 %autoreload 2
+
+# Set xarray to use html as display_style
+xr.set_options(display_style="html")
 
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
@@ -190,24 +193,50 @@ tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
 df_potato_stats = df_potato.copy()
 
 for df_name, df in df_potato.items(): # Loop over all field polygon years
-    pkl_name = df_name + '_stats_multiindex' 
-    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
-    #if pkl_path.exists():
+    netcdf_name = df_name + '_stats' 
+    netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
+    #if netcdf_path.exists():
     if False:
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
-        df = df.head(20)  # For debugging (ie. only process 20 fields)
-        df = df.set_index('id')
-        ds = df.to_xarray()
-        '''
-        #for tif in tqdm(tifs):  # Loop over all Sentinel-1 images
-        for tif in tqdm(tifs[0:4]):  # Loop over all Sentinel-1 images
-            # Get metadata for satellite pass from the filename of the .tif file
-            satellite = tif.stem[0:3]
-            date = tif.stem[4:12]
-            pass_mode = tif.stem[20:23]
-            relative_orbit = tif.stem[24:27]
+        ### FOR DEBUGGING ###
+        #df = df.head(20)  
+        #tifs = tifs[0:3]
+        #####################
+        
+        # Set the index to use the field_id
+        #df = df.set_index('id')
+        
+        # Load the dataframe into xarray and rename id to field_id
+        ds = xr.Dataset.from_dataframe(df.set_index('id'))
+        ds = ds.rename({'id': 'field_id'})
+        ds = ds.drop('geometry')  # Cannot be saved to netcdf format
+
+        # Find the dates of all the tif files and assign them as new coordinates
+        dates_str = list(map(lambda x: x.stem[4:12], tifs))
+        dates = pd.to_datetime(dates_str)
+        ds = ds.assign_coords({'date': dates})
+        
+        # Assign polarization coordinates
+        ds = ds.assign_coords({'polarization': ['VH', 'VV', 'VV-VH']})
+
+        # Create the empty array for the stats
+        num_fields = ds.dims['field_id']
+        num_dates = len(dates)
+        num_polarizations = ds.dims['polarization']
+        stats_min_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+        stats_max_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+        stats_mean_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+        stats_std_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+        stats_median_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+
+        # Calculate the zonal stats
+        for date_index, tif in enumerate(tqdm(tifs)):  # Loop over all Sentinel-1 images
+            # Get metadata for satellite pass from the filename of the .tif file (not used at the moment)
+            #satellite = tif.stem[0:3]
+            #pass_mode = tif.stem[20:23]
+            #relative_orbit = tif.stem[24:27]
             
             # Perform zonal statistics on all bands
             for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
@@ -219,65 +248,43 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
                     results_df = rasterstatsmulti.calc_zonal_stats(band=band, prog_bar=False) 
 
                 del rasterstatsmulti
+                
+                # Check if the ordering of the field_ids are the same in the xarray dataset and the results_df
+                # (they must be - otherwise the calculated statistics will be assigned to the wrong elements in the statistics arrays)
+                for i in np.random.randint(low=0, high=num_fields, size=20):
+                    ds_field_id = ds.isel(field_id=i)['field_id'].values
+                    df_field_id = results_df.iloc[i]['id']
+                    assert ds_field_id == df_field_id 
+                
+                # Update the statistics arrays
+                polarization_index = band-1
+                stats_min_array[:, date_index, polarization_index] = results_df['min']
+                stats_max_array[:, date_index, polarization_index] = results_df['max']
+                stats_mean_array[:, date_index, polarization_index] = results_df['mean']
+                stats_std_array[:, date_index, polarization_index] = results_df['std']
+                stats_median_array[:, date_index, polarization_index] = results_df['median']
+                
+        # Load the zonal stats into xarray
+        ds['stats_min']=(['field_id', 'date', 'polarization'], stats_min_array)
+        ds['stats_max']=(['field_id', 'date', 'polarization'], stats_max_array)
+        ds['stats_mean']=(['field_id', 'date', 'polarization'], stats_mean_array)
+        ds['stats_std']=(['field_id', 'date', 'polarization'], stats_std_array)
+        ds['stats_median']=(['field_id', 'date', 'polarization'], stats_median_array)
 
-                stats_cols = {
-                    'min': tif.stem + '_B' + str(band) + '_min',
-                    'max': tif.stem + '_B' + str(band) + '_max',
-                    'mean': tif.stem + '_B' + str(band) + '_mean',
-                    'std': tif.stem + '_B' + str(band) + '_std',
-                    'median': tif.stem + '_B' + str(band) + '_median',
-                }
-
-                results_df = results_df.rename(columns=stats_cols)
-
-                # Note: The * operator iterates through the list (https://stackoverflow.com/a/56736691/12045808)
-                df_potato_stats[df_name] = df_potato_stats[df_name].merge(results_df[['id', *stats_cols.values()]], left_on='id', right_on='id')
-        '''
-
-        if not pkl_path.parent.exists():
-            os.makedirs(pkl_path.parent)
-
-        # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
-        #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
-        #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
-        df_potato_stats[df_name].to_pickle(pkl_path) 
+        # Save the dataset
+        if not netcdf_path.parent.exists():
+            os.makedirs(netcdf_path.parent)
+        ds = ds.sortby('date')  # Sort the dates (they are scrambled due to naming of the tif files starting with 'S1A' and 'S1B')
+        ds.to_netcdf(netcdf_path, engine='h5netcdf')
     break
 ```
 
 ```python
-ds
-```
+netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2017_stats').with_suffix('.nc')
+with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
+    ds = ds.isel(field_id=3)  # Only select one field or the plotting fucks up
+    ds = ds.sel(date=slice('2019-01-01', '2019-11-24'))
+    ds = ds.sel(polarization='VV')
 
-```python
-print(ds['imk_areal'][2].values)
-```
-
-```python
-ds.expand_dims('stats')
-ds['stats'] = 5
-print(ds['stats'].values)
-```
-
-```python
-df_potato_stats['FieldPolygons2017'].head(5)
-```
-
-```python
-df_potato_stats = {}
-for df_name in FIELD_POLYGONS:
-    pkl_name = df_name + '_stats'
-    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
-    df = pd.read_pickle(pkl_path)
-    df_potato_stats[df_name] = df
-    
-
-x = []
-for column in df_potato_stats['FieldPolygons2017']:
-    if 'S1A' in column and 'B1_mean' in column:
-        value = df_potato_stats['FieldPolygons2017'][column].loc[8]
-        x.append(value)
-    #print(df_potato_stats[column])
-    
-print(x)
-plt.plot(x)
+    ds.to_dataframe()['stats_mean'].plot(style='s-')
 ```
