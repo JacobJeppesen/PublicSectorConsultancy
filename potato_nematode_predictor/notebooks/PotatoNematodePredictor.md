@@ -201,16 +201,13 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
     else:
         print("Calculating zonal statistics for: " + df_name)
         ### FOR DEBUGGING ###
-        #df = df.head(20)  
-        #tifs = tifs[0:3]
+        df = df.head(20)  
+        tifs = tifs[0:30]
         #####################
         
-        # Set the index to use the field_id
-        #df = df.set_index('id')
-        
-        # Load the dataframe into xarray and rename id to field_id
-        ds = xr.Dataset.from_dataframe(df.set_index('id'))
-        ds = ds.rename({'id': 'field_id'})
+        # Load the dataframe into xarray 
+        ds = xr.Dataset.from_dataframe(df.set_index('id'))  # Use field_id (named 'id') as index
+        ds = ds.rename({'id': 'field_id'})  
         ds = ds.drop('geometry')  # Cannot be saved to netcdf format
 
         # Find the dates of all the tif files and assign them as new coordinates
@@ -220,21 +217,23 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         
         # Assign polarization coordinates
         ds = ds.assign_coords({'polarization': ['VH', 'VV', 'VV-VH']})
+        ds = ds.assign_coords({'satellite': ['S1A', 'S1B']})
 
         # Create the empty array for the stats
         num_fields = ds.dims['field_id']
         num_dates = len(dates)
         num_polarizations = ds.dims['polarization']
-        stats_min_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
-        stats_max_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
-        stats_mean_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
-        stats_std_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
-        stats_median_array = np.zeros((num_fields, num_dates, num_polarizations))  # The '3' is the polarization
+        num_satellites = ds.dims['satellite']
+        stats_min_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
+        stats_max_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
+        stats_mean_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites)) 
+        stats_std_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
+        stats_median_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))
 
         # Calculate the zonal stats
         for date_index, tif in enumerate(tqdm(tifs)):  # Loop over all Sentinel-1 images
             # Get metadata for satellite pass from the filename of the .tif file (not used at the moment)
-            #satellite = tif.stem[0:3]
+            satellite = tif.stem[0:3]
             #pass_mode = tif.stem[20:23]
             #relative_orbit = tif.stem[24:27]
             
@@ -256,20 +255,28 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
                     df_field_id = results_df.iloc[i]['id']
                     assert ds_field_id == df_field_id 
                 
-                # Update the statistics arrays
+                # Get the indexing right
                 polarization_index = band-1
-                stats_min_array[:, date_index, polarization_index] = results_df['min']
-                stats_max_array[:, date_index, polarization_index] = results_df['max']
-                stats_mean_array[:, date_index, polarization_index] = results_df['mean']
-                stats_std_array[:, date_index, polarization_index] = results_df['std']
-                stats_median_array[:, date_index, polarization_index] = results_df['median']
+                if satellite == 'S1A':
+                    satellite_index = 0
+                elif satellite == 'S1B':
+                    satellite_index = 1
+                else:
+                    raise ValueError("Not recognized satellite for satellite_idnex")
+                    
+                # Update the statistics arrays
+                stats_min_array[:, date_index, polarization_index, satellite_index] = results_df['min']
+                stats_max_array[:, date_index, polarization_index, satellite_index] = results_df['max']
+                stats_mean_array[:, date_index, polarization_index, satellite_index] = results_df['mean']
+                stats_std_array[:, date_index, polarization_index, satellite_index] = results_df['std']
+                stats_median_array[:, date_index, polarization_index, satellite_index] = results_df['median']
                 
         # Load the zonal stats into xarray
-        ds['stats_min']=(['field_id', 'date', 'polarization'], stats_min_array)
-        ds['stats_max']=(['field_id', 'date', 'polarization'], stats_max_array)
-        ds['stats_mean']=(['field_id', 'date', 'polarization'], stats_mean_array)
-        ds['stats_std']=(['field_id', 'date', 'polarization'], stats_std_array)
-        ds['stats_median']=(['field_id', 'date', 'polarization'], stats_median_array)
+        ds['stats_min']=(['field_id', 'date', 'polarization', 'satellite'], stats_min_array)
+        ds['stats_max']=(['field_id', 'date', 'polarization', 'satellite'], stats_max_array)
+        ds['stats_mean']=(['field_id', 'date', 'polarization', 'satellite'], stats_mean_array)
+        ds['stats_std']=(['field_id', 'date', 'polarization', 'satellite'], stats_std_array)
+        ds['stats_median']=(['field_id', 'date', 'polarization', 'satellite'], stats_median_array)
 
         # Save the dataset
         if not netcdf_path.parent.exists():
@@ -282,9 +289,17 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
 ```python
 netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2017_stats').with_suffix('.nc')
 with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
-    ds = ds.isel(field_id=3)  # Only select one field or the plotting fucks up
+    ds = ds.isel(field_id=9)  # Only select one field or the plotting fucks up
     ds = ds.sel(date=slice('2019-01-01', '2019-11-24'))
     ds = ds.sel(polarization='VV')
+    ds = ds.sel(satellite='S1A')
+    
+    ds = ds.where(ds.stats_mean < 0, drop=True)
+    ds['stats_mean'].to_dataframe()['stats_mean'].plot(style='s-')
+```
 
-    ds.to_dataframe()['stats_mean'].plot(style='s-')
+```python
+ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
+ds = ds.drop_sel(satellite=['S1A'])
+ds
 ```
