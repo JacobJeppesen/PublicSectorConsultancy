@@ -4,13 +4,20 @@ This work contains the public sector consultancy work on a potato nematode predi
 Start by configuring the notebook:
 
 ```python
+!pip install h5netcdf
+```
+
+```python
 import wget
 import geopandas
 import os
 import rasterio
 import sys
+import fiona
+import numpy as np
 import xarray as xr
 import pandas as pd
+import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
 
 from pathlib import Path
@@ -36,8 +43,10 @@ PROJ_PATH = Path.cwd().parent
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
+ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False
+BUFFER_SIZE = -20  # Unit is meter
 ```
 
 ---
@@ -85,120 +94,105 @@ for zipfile in (PROJ_PATH / 'data' / 'external').glob('**/*.zip'):
 ---
 Now load the shapefiles into geopandas dataframes:
 
-```python
-def load_shp(shp_name):
-    # Load shapefile into dataframe and remove NaN rows
-    shp_file_path = list((PROJ_PATH / 'data' / 'raw' / shp_name).glob('**/*.shp'))[0]
-    df = geopandas.read_file(str(shp_file_path))
-    df = df.dropna()
-    
-    # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
-    df.columns = map(str.lower, df.columns)
-    
-    return df
-
-# Load the dataframes into a dict, with each year as a key
-df_all = {}
-for df_name in FIELD_POLYGONS:
-    df = load_shp(df_name)
-    df_all[df_name] = df
-```
 
 ---
 Find the potato fields and count the number of unique sorts:
 
 ```python
-def extract_potato_fields(df):
-    # Create a new dataframe with all the different types of potatoes
-    df = df[df['afgroede'].str.contains("kartof", case=False)]  
+def buffer_and_analyze_fields(shp_path, only_potato=True):
+    # Load shapefile into dataframe and remove NaN rows
+    df = geopandas.read_file(str(shp_path))
+    df = df.dropna()
+    
+    # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
+    df.columns = map(str.lower, df.columns)
+    
+    # Extract all potato fields
+    if only_potato:
+        # Create a new dataframe with all the different types of potatoes
+        df = df[df['afgroede'].str.contains("kartof", case=False)]  
+    
+    # Buffer the geometries to take imprecise coregistration into consideration (important for zonal statistics)
+    df['geometry'] = df['geometry'].values.buffer(BUFFER_SIZE)
+    df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (ie. fields with zero area after buffering)
+    
+    # Find the total number of fields
+    print("### Analyzing " + df_name + " (after buffering of " + str(BUFFER_SIZE) + "m) ###")
+    num_fields = df.shape[0]
+    sum_area = df['imk_areal'].sum()
+    print("There are a total of " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha)")
 
     # Find the different potato types, count the number of fields for each type, and calculate total area for each type
-    for potato_type in sorted(df['afgroede'].unique()):
-        num_fields = df[df['afgroede'] == potato_type].shape[0]
-        sum_area = df[df['afgroede'] == potato_type]['imk_areal'].sum()
-        print("There are " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha) of type: " + potato_type)
-        
+    potato_types = df[df['afgroede'].str.contains("kartof", case=False)]['afgroede'].unique()
+    for potato_type in sorted(potato_types):
+        num_potato_fields = df[df['afgroede'] == potato_type].shape[0]
+        sum_potato_area = df[df['afgroede'] == potato_type]['imk_areal'].sum()
+        print("There are " + str(num_potato_fields) + " fields (total area = " + str(int(sum_potato_area)) + " ha) of type: " + potato_type)
+
+    print("")
+    
     return df 
 
-# Extract the potato fields and load them into a new dict with each year as a key
-df_potato = {}
-for df_name, df in df_all.items():
-    print("### Analyzing " + df_name + " ###")
-    df_potato[df_name] = extract_potato_fields(df)
-    print("")
+# Buffer and analyze the field polygons
+for df_name in FIELD_POLYGONS:
+    shp_src_path = list((PROJ_PATH / 'data' / 'raw' / df_name).glob('**/*.shp'))[0]
+    shp_dest_name = '{}_buffered'.format(df_name)
+    shp_dest_path = (PROJ_PATH / 'data' / 'processed' / shp_dest_name / shp_dest_name).with_suffix('.shp')
+    
+    if not shp_dest_path.exists():
+        print("Buffering and analyzing fields: " + df_name)
+        print("")
+        df = buffer_and_analyze_fields(shp_src_path, only_potato=ONLY_POTATO)
+        
+        # Reproject the field polygons to the CRS of the tif files
+        tif = list((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))[0]
+        with rasterio.open(tif) as src:
+            tif_crs = src.crs
+            #print("Projection used in tif: " + str(tif_crs))
+        df = df.to_crs({'init': tif_crs})
+        
+        # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
+        df.crs = df.crs['init'].to_wkt()
+
+        if not shp_dest_path.parent.exists():
+            os.makedirs(shp_dest_path.parent)
+        df.to_file(shp_dest_path)
+    else:
+        print("Fields have already been buffered and analyzed: " + str(zipfile))
 ```
 
 ---
-Calculate zonal statistics for the the potato fields for the different radar data measurements:
+Calculate zonal statistics for the the fields for the different radar data measurements:
 
 ```python
+'''
 tif = list((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))[0]
 with rasterio.open(tif) as src:
     tif_crs = src.crs
-    print("Projection used is: " + str(tif_crs))
+    print("Projection used in tif: " + str(tif_crs))
 
-for df_name, df in df_potato.items():
+for df_name, df in df_buffered.items():
     # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
-    df_potato[df_name] = df_potato[df_name].to_crs({'init': tif_crs})
-```
-
-```python
-'''
-tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
-df_potato_stats = df_potato.copy()
-
-for df_name, df in df_potato.items(): # Loop over all field polygon years
-    pkl_name = df_name + '_stats' 
-    pkl_path = (PROJ_PATH / 'data' / 'processed' / pkl_name).with_suffix('.pkl')
-    if pkl_path.exists():
-        print("Zonal statistics have already been calculated for: " + df_name)
-    else:
-        print("Calculating zonal statistics for: " + df_name)
-        #df = df.head(20)  # For debugging to (ie. only process 20 fields)
-        for tif in tqdm(tifs):  # Loop over all Sentinel-1 images
-            for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
-                rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
-
-                if MULTI_PROC_ZONAL_STATS:
-                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc()     
-                else:
-                    results_df = rasterstatsmulti.calc_zonal_stats(band=band, prog_bar=False) 
-
-                del rasterstatsmulti
-
-                stats_cols = {
-                    'min': tif.stem + '_B' + str(band) + '_min',
-                    'max': tif.stem + '_B' + str(band) + '_max',
-                    'mean': tif.stem + '_B' + str(band) + '_mean',
-                    'std': tif.stem + '_B' + str(band) + '_std',
-                    'median': tif.stem + '_B' + str(band) + '_median',
-                }
-
-                results_df = results_df.rename(columns=stats_cols)
-
-                # Note: The * operator iterates through the list (https://stackoverflow.com/a/56736691/12045808)
-                df_potato_stats[df_name] = df_potato_stats[df_name].merge(results_df[['id', *stats_cols.values()]], left_on='id', right_on='id')
-
-        if not shp_path.parent.exists():
-            os.makedirs(shp_path.parent)
-
-        # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
-        #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
-        #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
-        df_potato_stats[df_name].to_pickle(pkl_path) 
+    df_buffered[df_name] = df_buffered[df_name].to_crs({'init': tif_crs})
+    df_buffered[df_name].crs = df_buffered[df_name].crs['init'].to_wkt()
+    shp_name = '{}_buffered'.format(df_name)
+    shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
+    
+    if not shp_path.parent.exists():
+        os.makedirs(shp_path.parent)
+    df_buffered[df_name].to_file(shp_path)
 '''
 ```
 
 ```python
-!pip install h5netcdf
-```
-
-```python
-# We now want to create an xarray dataset based on the dataframe, with the zonal statistics as extra dimensions
+# We now want to create an xarray dataset based on the dataframe
 tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
-df_potato_stats = df_potato.copy()
 
-for df_name, df in df_potato.items(): # Loop over all field polygon years
+for df_name in FIELD_POLYGONS: # Loop over all field polygon years
+    shp_name = '{}_buffered'.format(df_name)
+    shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
+    df = geopandas.read_file(str(shp_path))
+    
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
     #if netcdf_path.exists():
@@ -206,10 +200,20 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
+        ### HACKY WAY TO DO THIS - IT SHOULD BE DONE INSIDE RASTERSTATSMULTIPROC ###
+        # TODO: Figure out how to do this on the pandas df instead of opening features from the shape file
+        #       (ie. implement calc_zonal_stats_multiproc with the use of df - but df cannot be self.df - it must be parsed into the function)
+        with fiona.open(shp_path) as src:
+            features = list(src)
+            crs = src.crs
+        ###
+        
         ### FOR DEBUGGING ###
-        df = df.head(200)  
+        #df = df.head(20)  
+        #features = features[:20]
         #tifs = tifs[0:3]
         #####################
+        rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, all_touched=ALL_TOUCHED)
         
         # Load the dataframe into xarray 
         ds = xr.Dataset.from_dataframe(df.set_index('id'))  # Use field_id (named 'id') as index
@@ -246,15 +250,15 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
             
             # Perform zonal statistics 
             for band in range(1, 4):  # Loop over all polarizations, including cross-polarization (indexed 1 to 3)
-                rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
+                rasterstatsmulti.band = band
+                rasterstatsmulti.tif = tif
 
                 if MULTI_PROC_ZONAL_STATS:
-                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc()     
+                    # Todo: Parse df to the function and use that instead of features
+                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc(features, crs)     
                 else:
-                    results_df = rasterstatsmulti.calc_zonal_stats(band=band, prog_bar=False) 
+                    results_df = rasterstatsmulti.calc_zonal_stats(prog_bar=False) 
 
-                del rasterstatsmulti
-                
                 # Check if the ordering of the field_ids are the same in the xarray dataset and the results_df
                 # (they must be - otherwise the calculated statistics will be assigned to the wrong elements in the statistics arrays)
                 for i in np.random.randint(low=0, high=num_fields, size=20):
@@ -298,28 +302,91 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
 ```
 
 ```python
-netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
-with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
-    ds = ds.isel(field_id=[1, 2, 3])  # Only select one field or the plotting fucks up
-    ds = ds.sel(date=slice('2019-01-01', '2019-11-24'))
-    #ds = ds.sel(polarization='VV')
-    #ds = ds.sel(satellite='S1A')
-    
-    # Format the dataframe to work well with Seaborn for plotting
-    df = ds.to_dataframe()
-    df = df.reset_index()  # Remove MultiIndex
-    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
-    df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
-
-    # Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
-    
-df
+# Open and look at the saved dataset
+#netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
+#ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
+#ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
 ```
 
 ```python
-#ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
-#ds = ds.drop_sel(satellite=['S1A'])
-#ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
+def get_plot_df(polygons_year=2019, satellite_dates=slice('2019-01-01', '2019-12-31'), fields='all', satellite='all', polarization='all'):
+    # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
+    # Load the xarray dataset
+    netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
+    netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
+    with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
+        # Select dates, fields, and polarizations
+        ds = ds.sel(date=satellite_dates)
+        if not fields == 'all':  # Must be 'all' or array of integers (eg. [1, 2, 3, 4])
+            ds = ds.isel(field_id=fields) 
+        if not polarization == 'all':  # Must be 'all', 'VV', 'VH', or 'VV-VH'
+            ds = ds.sel(polarization=polarization) 
+
+        # Convert ds to dataframe
+        df = ds.to_dataframe()
+        df = df.reset_index()  # Removes MultiIndex
+        df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
+
+        # Select satellites
+        if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
+            df = df[df['satellite']==satellite]
+    
+        # Format the dataframe to work well with Seaborn for plotting
+        df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+        df['field_id'] = ['$%s$' % x for x in df['field_id']]  # https://github.com/mwaskom/seaborn/issues/1653
+        df['afgkode'] = ['$%s$' % x for x in df['afgkode']]  # https://github.com/mwaskom/seaborn/issues/1653
+        df['relative_orbit'] = ['$%s$' % x for x in df['relative_orbit']]  # https://github.com/mwaskom/seaborn/issues/1653
+        
+    return df
+```
+
+```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                 fields='all',#range(100), 
+                 satellite='all', 
+                 polarization='VH')
+
+plt.figure(figsize=(24, 8))
+plt.xticks(rotation=45)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgkode', data=df)
+```
+
+```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                 fields='all',#range(100), 
+                 satellite='S1A', 
+                 polarization='VV-VH')
+
+plt.figure(figsize=(24, 8))
+plt.xticks(rotation=45)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+```
+
+```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-01-01', '2019-03-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization='VV')
+
+print("Types of pass-mode: {}".format(df['pass_mode'].unique()))
+
+plt.figure(figsize=(24, 8))
+ax = sns.scatterplot(x='stats_mean', y='stats_std', hue='satellite', data=df)
+```
+
+```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-01-01', '2019-03-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization='VV')
+
+df = df[['satellite', 'stats_mean', 'stats_std', 'stats_min', 'stats_max', 'stats_median']]
+plt.figure(figsize=(24, 24))
+ax = sns.pairplot(df, hue='satellite')
 ```
 
 ```python

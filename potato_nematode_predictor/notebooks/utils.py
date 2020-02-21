@@ -10,14 +10,16 @@ class RasterstatsMultiProc(object):
     """
     Inspired by https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
     """
-    def __init__(self, tif, df=None, shp=None, stats=['min', 'max', 'median', 'mean', 'std'], all_touched=False):
+    def __init__(self, tif=None, band=1, df=None, shp=None, stats=['min', 'max', 'median', 'mean', 'std'], all_touched=False):
             self.all_touched = all_touched
+            self.band = band
             self.df = df
+            self.shp = shp
             self.stats = stats
             self.tif = tif
             
-    def calc_zonal_stats(self, band=1, prog_bar=True):
-        gen = gen_zonal_stats(self.df, self.tif, stats=self.stats, band=band, geojson_out=True)
+    def calc_zonal_stats(self, prog_bar=True):
+        gen = gen_zonal_stats(self.df, self.tif, stats=self.stats, band=self.band, geojson_out=True)
         length = self.df.shape[0]
         results = []
         
@@ -36,12 +38,7 @@ class RasterstatsMultiProc(object):
         
         return results_df
 
-    def calc_zonal_stats_multiproc(self):
-        print("Be patient - it can easily take 30 min to calculate zonal stats.\n")
-        with fiona.open(self.shp) as src:
-            features = list(src)
-            crs = src.crs
-
+    def calc_zonal_stats_multiproc(self, features, crs):
         # Create a process pool using all cores
         cores = multiprocessing.cpu_count()
         with multiprocessing.Pool(cores) as pool:
@@ -68,4 +65,4 @@ class RasterstatsMultiProc(object):
 
     def zonal_stats_partial(self, feats):
         """Wrapper for zonal stats, takes a list of features"""
-        return zonal_stats(feats, self.tif, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
+        return zonal_stats(feats, self.tif, self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
