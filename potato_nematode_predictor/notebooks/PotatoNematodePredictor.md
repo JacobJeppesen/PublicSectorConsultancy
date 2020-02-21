@@ -143,6 +143,7 @@ for df_name, df in df_potato.items():
 ```
 
 ```python
+'''
 tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
 df_potato_stats = df_potato.copy()
 
@@ -185,6 +186,11 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         #df_potato_stats[df_name].crs = df_potato_stats[df_name].crs['init'].to_wkt()
         #df_potato_stats[df_name] = df_potato_stats[df_name].dropna()
         df_potato_stats[df_name].to_pickle(pkl_path) 
+'''
+```
+
+```python
+!pip install h5netcdf
 ```
 
 ```python
@@ -196,13 +202,13 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
     #if netcdf_path.exists():
-    if False:
+    if not '2019' in df_name:
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
         ### FOR DEBUGGING ###
-        df = df.head(20)  
-        tifs = tifs[0:30]
+        df = df.head(200)  
+        #tifs = tifs[0:3]
         #####################
         
         # Load the dataframe into xarray 
@@ -217,28 +223,29 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
         
         # Assign polarization coordinates
         ds = ds.assign_coords({'polarization': ['VH', 'VV', 'VV-VH']})
-        ds = ds.assign_coords({'satellite': ['S1A', 'S1B']})
 
-        # Create the empty array for the stats
+        # Create the empty arrays for the xarray data_vars
         num_fields = ds.dims['field_id']
         num_dates = len(dates)
         num_polarizations = ds.dims['polarization']
-        num_satellites = ds.dims['satellite']
-        stats_min_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
-        stats_max_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
-        stats_mean_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites)) 
-        stats_std_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))  
-        stats_median_array = np.zeros((num_fields, num_dates, num_polarizations, num_satellites))
-
+        stats_min_array = np.zeros((num_fields, num_dates, num_polarizations), dtype=np.float32)  
+        stats_max_array = np.zeros_like(stats_min_array)
+        stats_mean_array = np.zeros_like(stats_min_array)
+        stats_std_array = np.zeros_like(stats_min_array)
+        stats_median_array = np.zeros_like(stats_min_array)
+        satellite_array = [None] * num_dates
+        pass_mode_array = [None] * num_dates
+        relative_orbit_array = np.zeros((num_dates), dtype=np.int16)
+        
         # Calculate the zonal stats
         for date_index, tif in enumerate(tqdm(tifs)):  # Loop over all Sentinel-1 images
-            # Get metadata for satellite pass from the filename of the .tif file (not used at the moment)
+            # Get metadata for satellite pass from the filename of the .tif file
             satellite = tif.stem[0:3]
-            #pass_mode = tif.stem[20:23]
-            #relative_orbit = tif.stem[24:27]
+            pass_mode = tif.stem[20:23]
+            relative_orbit = tif.stem[24:27]
             
-            # Perform zonal statistics on all bands
-            for band in range(1, 4):  # Loop over all three bands (indexed 1 to 3)
+            # Perform zonal statistics 
+            for band in range(1, 4):  # Loop over all polarizations, including cross-polarization (indexed 1 to 3)
                 rasterstatsmulti = RasterstatsMultiProc(df=df, tif=tif, all_touched=ALL_TOUCHED)
 
                 if MULTI_PROC_ZONAL_STATS:
@@ -255,51 +262,66 @@ for df_name, df in df_potato.items(): # Loop over all field polygon years
                     df_field_id = results_df.iloc[i]['id']
                     assert ds_field_id == df_field_id 
                 
-                # Get the indexing right
-                polarization_index = band-1
-                if satellite == 'S1A':
-                    satellite_index = 0
-                elif satellite == 'S1B':
-                    satellite_index = 1
-                else:
-                    raise ValueError("Not recognized satellite for satellite_idnex")
-                    
-                # Update the statistics arrays
-                stats_min_array[:, date_index, polarization_index, satellite_index] = results_df['min']
-                stats_max_array[:, date_index, polarization_index, satellite_index] = results_df['max']
-                stats_mean_array[:, date_index, polarization_index, satellite_index] = results_df['mean']
-                stats_std_array[:, date_index, polarization_index, satellite_index] = results_df['std']
-                stats_median_array[:, date_index, polarization_index, satellite_index] = results_df['median']
+                # Update the arrays
+                polarization_index = band-1  # Get the indexing right
+                stats_min_array[:, date_index, polarization_index] = results_df['min']
+                stats_max_array[:, date_index, polarization_index] = results_df['max']
+                stats_mean_array[:, date_index, polarization_index] = results_df['mean']
+                stats_std_array[:, date_index, polarization_index] = results_df['std']
+                stats_median_array[:, date_index, polarization_index] = results_df['median']
+                satellite_array[date_index] = satellite
+                pass_mode_array[date_index] = pass_mode 
+                relative_orbit_array[date_index] = relative_orbit 
                 
-        # Load the zonal stats into xarray
-        ds['stats_min']=(['field_id', 'date', 'polarization', 'satellite'], stats_min_array)
-        ds['stats_max']=(['field_id', 'date', 'polarization', 'satellite'], stats_max_array)
-        ds['stats_mean']=(['field_id', 'date', 'polarization', 'satellite'], stats_mean_array)
-        ds['stats_std']=(['field_id', 'date', 'polarization', 'satellite'], stats_std_array)
-        ds['stats_median']=(['field_id', 'date', 'polarization', 'satellite'], stats_median_array)
+        # Load the arrays into xarray
+        ds['stats_min']=(['field_id', 'date', 'polarization'], stats_min_array)
+        ds['stats_max']=(['field_id', 'date', 'polarization'], stats_max_array)
+        ds['stats_mean']=(['field_id', 'date', 'polarization'], stats_mean_array)
+        ds['stats_std']=(['field_id', 'date', 'polarization'], stats_std_array)
+        ds['stats_median']=(['field_id', 'date', 'polarization'], stats_median_array)
+        ds['satellite']=(['date'], satellite_array)
+        ds['pass_mode']=(['date'], pass_mode_array)
+        ds['relative_orbit']=(['date'], relative_orbit_array)
+        
+        # Use proper dtypes in the datset to save space and memory
+        ds['field_id'] = ds['field_id'].astype(np.int32) 
+        ds['afgkode'] = ds['afgkode'].astype(np.int16) 
+        ds['gb'] = ds['gb'].astype(np.float32) 
+        ds['gbanmeldt'] = ds['gbanmeldt'].astype(np.float32) 
+        ds['imk_areal'] = ds['imk_areal'].astype(np.float32) 
 
         # Save the dataset
         if not netcdf_path.parent.exists():
             os.makedirs(netcdf_path.parent)
         ds = ds.sortby('date')  # Sort the dates (they are scrambled due to naming of the tif files starting with 'S1A' and 'S1B')
         ds.to_netcdf(netcdf_path, engine='h5netcdf')
-    break
 ```
 
 ```python
-netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2017_stats').with_suffix('.nc')
+netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
 with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
-    ds = ds.isel(field_id=9)  # Only select one field or the plotting fucks up
+    ds = ds.isel(field_id=[1, 2, 3])  # Only select one field or the plotting fucks up
     ds = ds.sel(date=slice('2019-01-01', '2019-11-24'))
-    ds = ds.sel(polarization='VV')
-    ds = ds.sel(satellite='S1A')
+    #ds = ds.sel(polarization='VV')
+    #ds = ds.sel(satellite='S1A')
     
-    ds = ds.where(ds.stats_mean < 0, drop=True)
-    ds['stats_mean'].to_dataframe()['stats_mean'].plot(style='s-')
+    # Format the dataframe to work well with Seaborn for plotting
+    df = ds.to_dataframe()
+    df = df.reset_index()  # Remove MultiIndex
+    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+    df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
+
+    # Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
+    
+df
 ```
 
 ```python
-ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
-ds = ds.drop_sel(satellite=['S1A'])
-ds
+#ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
+#ds = ds.drop_sel(satellite=['S1A'])
+#ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
+```
+
+```python
+
 ```
