@@ -211,9 +211,9 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
         
         df = geopandas.read_file(str(shp_path))
         ### FOR DEBUGGING ###
-        df = df.head(20)  
-        features = features[:20]
-        tifs = tifs[0:3]
+        #df = df.head(200)  
+        #features = features[:200]
+        #tifs = tifs[0:3]
         #####################
         rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, all_touched=ALL_TOUCHED)
         
@@ -351,7 +351,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgkode', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
 ```
 
 ```python
