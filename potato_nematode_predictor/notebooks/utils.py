@@ -40,7 +40,7 @@ class RasterstatsMultiProc(object):
 
     def calc_zonal_stats_multiproc(self, features, crs):
         # Create a process pool using all cores
-        cores = multiprocessing.cpu_count()
+        cores = 8# multiprocessing.cpu_count()
         with multiprocessing.Pool(cores) as pool:
             # parallel map
             results_lists = pool.map(self.zonal_stats_partial, self.chunks(features, cores))

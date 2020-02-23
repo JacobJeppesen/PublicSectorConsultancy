@@ -4,10 +4,6 @@ This work contains the public sector consultancy work on a potato nematode predi
 Start by configuring the notebook:
 
 ```python
-!pip install h5netcdf
-```
-
-```python
 import wget
 import geopandas
 import os
@@ -43,8 +39,9 @@ PROJ_PATH = Path.cwd().parent
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
+CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', 'Permanent græs, normalt udbytte']  
 ONLY_POTATO = False
-MULTI_PROC_ZONAL_STATS = False
+MULTI_PROC_ZONAL_STATS = True
 ALL_TOUCHED = False
 BUFFER_SIZE = -20  # Unit is meter
 ```
@@ -92,14 +89,33 @@ for zipfile in (PROJ_PATH / 'data' / 'external').glob('**/*.zip'):
 ```
 
 ---
-Now load the shapefiles into geopandas dataframes:
+Now the most common crop types for the individual years
 
+```python
+if False:  # Set it to True if you want to find the results
+    for df_name in FIELD_POLYGONS:
+        shp_path = list((PROJ_PATH / 'data' / 'raw' / df_name).glob('**/*.shp'))[0]
+        df = geopandas.read_file(str(shp_path))   
+        
+        # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
+        df.columns = map(str.lower, df.columns)
+
+        # Find most common crop types
+        n = 15 
+        crop_types = df['afgroede'].value_counts()[:n].index.tolist()
+        print("### Analyzing " + df_name + " ###")
+        for crop_type in crop_types:
+            num_fields = df[df['afgroede'] == crop_type].shape[0]
+            afgkode = df[df['afgroede'] == crop_type].iloc[0]['afgkode']
+            print("Crop type: {} (fields={}, afgkode={})".format(crop_type, num_fields, int(afgkode)))
+        print("")
+```
 
 ---
 Find the potato fields and count the number of unique sorts:
 
 ```python
-def buffer_and_analyze_fields(shp_path, only_potato=True):
+def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhvede']):
     # Load shapefile into dataframe and remove NaN rows
     df = geopandas.read_file(str(shp_path))
     df = df.dropna()
@@ -107,32 +123,38 @@ def buffer_and_analyze_fields(shp_path, only_potato=True):
     # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
     df.columns = map(str.lower, df.columns)
     
-    # Extract all potato fields
-    if only_potato:
-        # Create a new dataframe with all the different types of potatoes
-        df = df[df['afgroede'].str.contains("kartof", case=False)]  
+    # Extract crop types 
+    df_extracted = df[df['afgroede'].str.contains('kartof', case=False)]
+    if not only_potato:
+        for crop_type in crop_types:  
+            df_crop = df[df['afgroede'] == crop_type]
+            df_crop = df_crop.sample(n=5000)  # Get a maximum of n fields for each crop type
+            df_extracted = df_extracted.append(df_crop)
+    df = df_extracted
     
     # Buffer the geometries to take imprecise coregistration into consideration (important for zonal statistics)
     df['geometry'] = df['geometry'].values.buffer(BUFFER_SIZE)
     df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (ie. fields with zero area after buffering)
     
     # Find the total number of fields
-    print("### Analyzing " + df_name + " (after buffering of " + str(BUFFER_SIZE) + "m) ###")
     num_fields = df.shape[0]
     sum_area = df['imk_areal'].sum()
+    print("### Analyzing " + df_name + " (after buffering of " + str(BUFFER_SIZE) + "m) ###")
     print("There are a total of " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha)")
 
-    # Find the different potato types, count the number of fields for each type, and calculate total area for each type
-    potato_types = df[df['afgroede'].str.contains("kartof", case=False)]['afgroede'].unique()
-    for potato_type in sorted(potato_types):
-        num_potato_fields = df[df['afgroede'] == potato_type].shape[0]
-        sum_potato_area = df[df['afgroede'] == potato_type]['imk_areal'].sum()
-        print("There are " + str(num_potato_fields) + " fields (total area = " + str(int(sum_potato_area)) + " ha) of type: " + potato_type)
+    # Find the different crop types, count the number of fields for each type, and calculate total area for each type
+    extracted_crop_types = df['afgroede'].unique()
+    for crop_type in sorted(extracted_crop_types):
+        num_fields = df[df['afgroede'] == crop_type].shape[0]
+        sum_area = df[df['afgroede'] == crop_type]['imk_areal'].sum()
+        print("There are " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha) of type: " + crop_type)
 
     print("")
     
     return df 
+```
 
+```python
 # Buffer and analyze the field polygons
 for df_name in FIELD_POLYGONS:
     shp_src_path = list((PROJ_PATH / 'data' / 'raw' / df_name).glob('**/*.shp'))[0]
@@ -140,9 +162,9 @@ for df_name in FIELD_POLYGONS:
     shp_dest_path = (PROJ_PATH / 'data' / 'processed' / shp_dest_name / shp_dest_name).with_suffix('.shp')
     
     if not shp_dest_path.exists():
-        print("Buffering and analyzing fields: " + df_name)
+        print("Buffering and analyzing field polygons: " + df_name)
         print("")
-        df = buffer_and_analyze_fields(shp_src_path, only_potato=ONLY_POTATO)
+        df = buffer_and_analyze_fields(shp_src_path, only_potato=ONLY_POTATO, crop_types=CROP_TYPES)
         
         # Reproject the field polygons to the CRS of the tif files
         tif = list((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))[0]
@@ -158,31 +180,11 @@ for df_name in FIELD_POLYGONS:
             os.makedirs(shp_dest_path.parent)
         df.to_file(shp_dest_path)
     else:
-        print("Fields have already been buffered and analyzed: " + str(zipfile))
+        print("Field polygons have already been buffered and analyzed: " + df_name)
 ```
 
 ---
 Calculate zonal statistics for the the fields for the different radar data measurements:
-
-```python
-'''
-tif = list((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))[0]
-with rasterio.open(tif) as src:
-    tif_crs = src.crs
-    print("Projection used in tif: " + str(tif_crs))
-
-for df_name, df in df_buffered.items():
-    # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
-    df_buffered[df_name] = df_buffered[df_name].to_crs({'init': tif_crs})
-    df_buffered[df_name].crs = df_buffered[df_name].crs['init'].to_wkt()
-    shp_name = '{}_buffered'.format(df_name)
-    shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
-    
-    if not shp_path.parent.exists():
-        os.makedirs(shp_path.parent)
-    df_buffered[df_name].to_file(shp_path)
-'''
-```
 
 ```python
 # We now want to create an xarray dataset based on the dataframe
@@ -191,7 +193,6 @@ tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
 for df_name in FIELD_POLYGONS: # Loop over all field polygon years
     shp_name = '{}_buffered'.format(df_name)
     shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
-    df = geopandas.read_file(str(shp_path))
     
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
@@ -208,10 +209,11 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
             crs = src.crs
         ###
         
+        df = geopandas.read_file(str(shp_path))
         ### FOR DEBUGGING ###
-        #df = df.head(20)  
-        #features = features[:20]
-        #tifs = tifs[0:3]
+        df = df.head(20)  
+        features = features[:20]
+        tifs = tifs[0:3]
         #####################
         rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, all_touched=ALL_TOUCHED)
         
