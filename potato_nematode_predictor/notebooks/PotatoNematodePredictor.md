@@ -196,8 +196,8 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
     
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
-    #if netcdf_path.exists():
-    if not '2019' in df_name:
+    if netcdf_path.exists():
+    #if not '2019' in df_name:
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
@@ -311,7 +311,12 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
 ```
 
 ```python
-def get_plot_df(polygons_year=2019, satellite_dates=slice('2019-01-01', '2019-12-31'), fields='all', satellite='all', polarization='all'):
+def get_plot_df(polygons_year=2019, 
+                satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                fields='all', 
+                satellite='all', 
+                polarization='all',
+                afgroede='all'):
     # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
     # Load the xarray dataset
     netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
@@ -332,6 +337,10 @@ def get_plot_df(polygons_year=2019, satellite_dates=slice('2019-01-01', '2019-12
         # Select satellites
         if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
             df = df[df['satellite']==satellite]
+            
+        # Select crop types
+        if not afgroede == 'all':  # Must be 'all' or name of crop type
+            df = df[df['afgroede']==afgroede]
     
         # Format the dataframe to work well with Seaborn for plotting
         df['date'] = df['date'].dt.strftime('%Y-%m-%d')
@@ -346,8 +355,8 @@ def get_plot_df(polygons_year=2019, satellite_dates=slice('2019-01-01', '2019-12
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
-                 satellite='all', 
-                 polarization='VH')
+                 satellite='S1A', 
+                 polarization='VV')
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
@@ -356,7 +365,7 @@ ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
 
 ```python
 df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
                  satellite='S1A', 
                  polarization='VV-VH')
@@ -389,6 +398,78 @@ df = get_plot_df(polygons_year=2019,
 df = df[['satellite', 'stats_mean', 'stats_std', 'stats_min', 'stats_max', 'stats_median']]
 plt.figure(figsize=(24, 24))
 ax = sns.pairplot(df, hue='satellite')
+```
+
+```python
+afgroede = 'Silomajs'
+polarization = 'VV'
+num_field_ids = 1024 
+
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization=polarization,
+                 afgroede=afgroede)
+
+df = df.dropna()
+
+# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+plt.figure(figsize=(8, 8))
+cmap_label = "{}, stats_mean".format(polarization)
+ax = sns.heatmap(df, vmin=-26, vmax=-10, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+title = "Temporal evolution of: {}".format(afgroede)
+ax.set_title(title)
+```
+
+```python
+afgroede = 'Vinterraps'
+polarization = 'VV'
+num_field_ids = 1024 
+
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization=polarization,
+                 afgroede=afgroede)
+
+df = df.dropna()
+
+# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+plt.figure(figsize=(8, 8))
+cmap_label = "{}, stats_mean".format(polarization)
+ax = sns.heatmap(df, vmin=-26, vmax=-10, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+title = "Temporal evolution of: {}".format(afgroede)
+ax.set_title(title)
+```
+
+```python
+afgroede = 'Kartofler, spise-'
+polarization = 'VV'
+num_field_ids = 1024
+
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization=polarization,
+                 afgroede=afgroede)
+
+df = df.dropna()
+
+# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+plt.figure(figsize=(8, 8))
+cmap_label = "{}, stats_mean".format(polarization)
+ax = sns.heatmap(df, vmin=-26, vmax=-10,yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+title = "Temporal evolution of: {}".format(afgroede)
+ax.set_title(title)
 ```
 
 ```python
