@@ -403,7 +403,8 @@ ax = sns.pairplot(df, hue='satellite')
 ```python
 afgroede = 'Silomajs'
 polarization = 'VV'
-num_field_ids = 1024 
+num_field_ids = 128 
+sort_rows = True 
 
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
@@ -416,6 +417,17 @@ df = df.dropna()
 
 # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
 df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+if sort_rows:
+    # Sort by sum of each row
+    #df = df.reset_index()
+    #df = df.drop(columns=['field_id'])
+    #idx = df.sum(axis=1).sort_values(ascending=False).index
+    #df = df.iloc[idx]
+    
+    # Sort by specific column
+    col = 0
+    df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
 
 plt.figure(figsize=(8, 8))
 cmap_label = "{}, stats_mean".format(polarization)
@@ -428,11 +440,12 @@ ax.set_title(title)
 afgroede = 'Vinterraps'
 polarization = 'VV'
 num_field_ids = 1024 
+sort_rows = True
 
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all', 
-                 satellite='all', 
+                 satellite='S1A', 
                  polarization=polarization,
                  afgroede=afgroede)
 
@@ -440,6 +453,17 @@ df = df.dropna()
 
 # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
 df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+if sort_rows:
+    # Sort by sum of each row
+    df = df.reset_index()
+    df = df.drop(columns=['field_id'])
+    idx = df.sum(axis=1).sort_values(ascending=False).index
+    df = df.iloc[idx]
+    
+    # Sort by specific column
+    #col = 0
+    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
 
 plt.figure(figsize=(8, 8))
 cmap_label = "{}, stats_mean".format(polarization)
@@ -452,11 +476,12 @@ ax.set_title(title)
 afgroede = 'Kartofler, spise-'
 polarization = 'VV'
 num_field_ids = 1024
+sort_rows = True
 
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all', 
-                 satellite='all', 
+                 satellite='S1A', 
                  polarization=polarization,
                  afgroede=afgroede)
 
@@ -464,6 +489,17 @@ df = df.dropna()
 
 # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
 df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+
+if sort_rows:
+    # Sort by sum of each row
+    df = df.reset_index()
+    df = df.drop(columns=['field_id'])
+    idx = df.sum(axis=1).sort_values(ascending=False).index
+    df = df.iloc[idx]
+    
+    # Sort by specific column
+    #col = 30
+    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
 
 plt.figure(figsize=(8, 8))
 cmap_label = "{}, stats_mean".format(polarization)
@@ -473,5 +509,8 @@ ax.set_title(title)
 ```
 
 ```python
-
+# Idea for violin plot: Use it to compare individual dates on the x-axis. 
+# For instance have 5 dates and 2 crop types, and then use x=dates, y=stats-mean, hue=afgroede. 
+# This would give you a comparison of the distributions for two crop types for five different dates. 
+# That might be useful.
 ```
