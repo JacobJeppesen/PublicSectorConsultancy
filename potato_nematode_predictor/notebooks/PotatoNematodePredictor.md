@@ -355,7 +355,7 @@ def get_plot_df(polygons_year=2019,
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
-                 satellite='S1A', 
+                 satellite='all', 
                  polarization='VV')
 
 plt.figure(figsize=(24, 8))
@@ -368,7 +368,19 @@ df = get_plot_df(polygons_year=2019,
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
                  satellite='S1A', 
-                 polarization='VV-VH')
+                 polarization='VV')
+
+plt.figure(figsize=(24, 8))
+plt.xticks(rotation=45)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+```
+
+```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                 fields='all',#range(100), 
+                 satellite='S1B', 
+                 polarization='VV')
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
