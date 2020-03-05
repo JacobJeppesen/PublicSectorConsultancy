@@ -19,7 +19,7 @@ class RasterstatsMultiProc(object):
             self.tif = tif
             
     def calc_zonal_stats(self, prog_bar=True):
-        gen = gen_zonal_stats(self.df, self.tif, stats=self.stats, band=self.band, geojson_out=True)
+        gen = gen_zonal_stats(self.df, self.tif, band=self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
         length = self.df.shape[0]
         results = []
         

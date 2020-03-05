@@ -41,7 +41,7 @@ FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 # Define global flags
 CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', 'Permanent græs, normalt udbytte']  
 ONLY_POTATO = False
-MULTI_PROC_ZONAL_STATS = True
+MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False
 BUFFER_SIZE = -20  # Unit is meter
 ```
@@ -215,7 +215,6 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
         #features = features[:200]
         #tifs = tifs[0:3]
         #####################
-        rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, all_touched=ALL_TOUCHED)
         
         # Load the dataframe into xarray 
         ds = xr.Dataset.from_dataframe(df.set_index('id'))  # Use field_id (named 'id') as index
@@ -252,14 +251,18 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
             
             # Perform zonal statistics 
             for band in range(1, 4):  # Loop over all polarizations, including cross-polarization (indexed 1 to 3)
-                rasterstatsmulti.band = band
-                rasterstatsmulti.tif = tif
+                rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, tif=tif, band=band, all_touched=ALL_TOUCHED)
 
-                if MULTI_PROC_ZONAL_STATS:
+                if False:
+                #if MULTI_PROC_ZONAL_STATS:
                     # Todo: Parse df to the function and use that instead of features
+                    # NOTE: MULTIPROC DOES NOT WORK! IT ONLY CALCULATES VH (IE. BAND 0) EVERY 
+                    #       TIME, AND NEVER GET TO VV AND VV-VH (ie. BAND 1 AND 2)
                     results_df = rasterstatsmulti.calc_zonal_stats_multiproc(features, crs)     
                 else:
                     results_df = rasterstatsmulti.calc_zonal_stats(prog_bar=False) 
+                    
+                del rasterstatsmulti
 
                 # Check if the ordering of the field_ids are the same in the xarray dataset and the results_df
                 # (they must be - otherwise the calculated statistics will be assigned to the wrong elements in the statistics arrays)
@@ -305,9 +308,13 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
 
 ```python
 # Open and look at the saved dataset
-#netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
-#ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
-#ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
+netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
+ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
+ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
+```
+
+```python
+ds.close()
 ```
 
 ```python
