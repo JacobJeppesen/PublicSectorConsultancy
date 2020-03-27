@@ -16,6 +16,14 @@ import pandas as pd
 import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
 
+import matplotlib as mpl
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+import numpy as np
+mpl.style.use('seaborn')
+
 from pathlib import Path
 from zipfile import ZipFile
 from tqdm.autonotebook import tqdm
@@ -43,7 +51,7 @@ CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', '
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False
-BUFFER_SIZE = -20  # Unit is meter
+BUFFER_SIZE = -20  # Unit is meterJ
 ```
 
 ---
@@ -323,7 +331,7 @@ def get_plot_df(polygons_year=2019,
                 fields='all', 
                 satellite='all', 
                 polarization='all',
-                afgroede='all'):
+                crop_type='all'):
     # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
     # Load the xarray dataset
     netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
@@ -331,7 +339,7 @@ def get_plot_df(polygons_year=2019,
     with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
         # Select dates, fields, and polarizations
         ds = ds.sel(date=satellite_dates)
-        if not fields == 'all':  # Must be 'all' or array of integers (eg. [1, 2, 3, 4])
+        if not fields == 'all':  # Must be 'all' or array of integers (eg. [1, 2, 3, 4]) of field_ids
             ds = ds.isel(field_id=fields) 
         if not polarization == 'all':  # Must be 'all', 'VV', 'VH', or 'VV-VH'
             ds = ds.sel(polarization=polarization) 
@@ -340,6 +348,7 @@ def get_plot_df(polygons_year=2019,
         df = ds.to_dataframe()
         df = df.reset_index()  # Removes MultiIndex
         df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
+        df = df.dropna()
 
         # Select satellites
         if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
@@ -347,7 +356,7 @@ def get_plot_df(polygons_year=2019,
             
         # Select crop types
         if not afgroede == 'all':  # Must be 'all' or name of crop type
-            df = df[df['afgroede']==afgroede]
+            df = df[df['afgroede']==crop_type]
     
         # Format the dataframe to work well with Seaborn for plotting
         df['date'] = df['date'].dt.strftime('%Y-%m-%d')
@@ -468,585 +477,205 @@ ax = sns.pairplot(df, hue='satellite')
 ```
 
 ```python
-afgroede = 'Silomajs'
-polarization = 'VH'
-num_field_ids = 128 
-sort_rows = True 
-vmin = -30
-vmax = -5
+def plot_heatmap(crop_type = 'Vinterraps', polarization='VH', num_fields=128, satellite='all', sort_rows=True):
+    df = get_plot_df(polygons_year=2019, 
+                     satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                     fields='all', 
+                     satellite=satellite, 
+                     polarization=polarization,
+                     crop_type=crop_type)
 
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='all', 
-                 polarization=polarization,
-                 afgroede=afgroede)
+    df = df.dropna()
 
-df = df.dropna()
+    # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+    df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
 
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+    if sort_rows:
+        # Sort by sum of each row
+        df = df.reset_index()
+        df = df.drop(columns=['field_id'])
+        idx = df.sum(axis=1).sort_values(ascending=False).index
+        df = df.iloc[idx]
 
-if sort_rows:
-    # Sort by sum of each row
-    #df = df.reset_index()
-    #df = df.drop(columns=['field_id'])
-    #idx = df.sum(axis=1).sort_values(ascending=False).index
-    #df = df.iloc[idx]
+        # Sort by specific column
+        #col = 0
+        #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
     
-    # Sort by specific column
-    col = 0
-    df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+    # Get the min and max values depending on polarization
+    if polarization == 'VV':
+        vmin, vmax = -20, 5
+    elif polarization == 'VH':
+        vmin, vmax = -30, -5
+    elif polarization == 'VV-VH':
+        vmin, vmax = 0, 25
+    else:
+        raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
 
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+    plt.figure(figsize=(8, 8))
+    cmap_label = "{}, stats_mean".format(polarization)
+    ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+    title = "Temporal evolution of: {}".format(crop_type)
+    ax.set_title(title)
+    plt.show()
 ```
 
 ```python
-afgroede = 'Vinterraps'
-polarization = 'VH'
-num_field_ids = 128
-sort_rows = True
-vmin = -30
-vmax = -5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 0
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+plot_heatmap(crop_type='Vinterraps', polarization='VV', num_fields=128, satellite='all')
 ```
 
 ```python
-afgroede = 'Vinterraps'
-polarization = 'VV-VH'
-num_field_ids = 128
-sort_rows = True
-vmin = 0
-vmax = 25
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
+def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', num_fields=128, satellite='all', sort_rows=True):
+    fig, axs = plt.subplots(1, 3)
+    fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
+    fig.set_figheight(12)
+    fig.set_figwidth(24) 
     
-    # Sort by specific column
-    #col = 0
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+    polarizations = ['VV', 'VH', 'VV-VH']
+    for i, polarization in enumerate(polarizations):
+        df = get_plot_df(polygons_year=2019, 
+                         satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                         fields='all', 
+                         satellite=satellite, 
+                         polarization=polarization,
+                         crop_type=crop_type)
 
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+        # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+        df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_fields)
+        
+        # Drop NaN
+        df = df.dropna()
+
+        if sort_rows:
+            # Sort by sum of each row
+            df = df.reset_index()
+            df = df.drop(columns=['field_id'])
+            idx = df.sum(axis=1).sort_values(ascending=False).index
+            df = df.iloc[idx]
+
+            # Sort by specific column
+            #col = 0
+            #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+
+        # Get the min and max values depending on polarization
+        if polarization == 'VV':
+            vmin, vmax = -20, 5
+        elif polarization == 'VH':
+            vmin, vmax = -30, -5
+        elif polarization == 'VV-VH':
+            vmin, vmax = 0, 25
+        else:
+            raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
+            
+        sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+        
+    fig.show()
 ```
 
 ```python
-afgroede = 'Kartofler, spise-'
-polarization = 'VV'
-num_field_ids = 128
-sort_rows = True
-vmin = -20
-vmax = 5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+plot_heatmap_all_polarizations(crop_type='Vinterraps', num_fields=128, satellite='all')
 ```
 
 ```python
-afgroede = 'Kartofler, stivelses-'
-polarization = 'VV'
-num_field_ids = 128
-sort_rows = True
-vmin = -20
-vmax = 5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+plot_heatmap_all_polarizations(crop_type='Silomajs', num_fields=128, satellite='all')
 ```
 
 ```python
-afgroede = 'Kartofler, stivelses-'
-polarization = 'VH'
-num_field_ids = 128
-sort_rows = True
-vmin = -30
-vmax = -5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+plot_heatmap_all_polarizations(crop_type='Kartofler, stivelses-', num_fields=128, satellite='all')
 ```
 
 ```python
-afgroede = 'Kartofler, stivelses-'
-polarization = 'VV-VH'
-num_field_ids = 128
-sort_rows = True
-vmin = 0
-vmax = 25
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-plt.figure(figsize=(8, 8))
-cmap_label = "{}, stats_mean".format(polarization)
-ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-title = "Temporal evolution of: {}".format(afgroede)
-ax.set_title(title)
+for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
+    print(f"Plotting {crop_type}")
+    plot_heatmap_all_polarizations(crop_type=crop_type, num_fields=128, satellite='all')
 ```
 
 ```python
-afgroede = 'Kartofler, stivelses-'
-polarization = 'VH'
-num_field_ids = 32
-sort_rows = True
-vmin = -30
-vmax = -5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
+def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, satellite='all', sort_rows=True):
+    fig, axs = plt.subplots(1, 3, subplot_kw={'projection': '3d'})
+    #fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
+    fig.set_figheight(8)
+    fig.set_figwidth(24) 
     
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+    polarizations = ['VV', 'VH', 'VV-VH']
+    for i, polarization in enumerate(polarizations):
+        df = get_plot_df(polygons_year=2019, 
+                         satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                         fields='all', 
+                         satellite=satellite, 
+                         polarization=polarization,
+                         crop_type=crop_type)
 
-'''
-======================
-3D surface (color map)
-======================
+        df = df.dropna()
 
-Demonstrates plotting a 3D surface colored with the coolwarm color map.
-The surface is made opaque by using antialiased=False.
+        # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+        df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_fields)
 
-Also demonstrates using the LinearLocator and custom formatting for the
-z axis tick labels.
-'''
+        if sort_rows:
+            # Sort by sum of each row
+            df = df.reset_index()
+            df = df.drop(columns=['field_id'])
+            idx = df.sum(axis=1).sort_values(ascending=False).index
+            df = df.iloc[idx]
 
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import numpy as np
-mpl.style.use('seaborn')
+            # Sort by specific column
+            #col = 0
+            #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
 
+        # Get the min and max values depending on polarization
+        if polarization == 'VV':
+            vmin, vmax = -20, 5
+        elif polarization == 'VH':
+            vmin, vmax = -30, -5
+        elif polarization == 'VV-VH':
+            vmin, vmax = 0, 25
+        else:
+            raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
+            
+        # Make data.
+        dates = len(df.columns)
+        x = np.linspace(1, dates, dates)  # Dates
+        y = np.linspace(1, num_fields, num_fields)  # Fields
+        X,Y = np.meshgrid(x,y)
+        Z = df.to_numpy()
 
-fig = plt.figure(figsize=(24, 12))
-ax = fig.gca(projection='3d')
+        # Plot the surface.
+        surf = axs[i].plot_surface(X, Y, Z, cmap=cm.coolwarm,
+                               linewidth=0, antialiased=False)
 
-# Make data.
-x = np.linspace(1, 38, 38)  # Dates
-y = np.linspace(1, num_field_ids, num_field_ids)  # Fields
-X,Y = np.meshgrid(x,y)
-Z = df.to_numpy()
+        # Customize the z axis.
+        axs[i].zaxis.set_major_locator(LinearLocator(10))
+        axs[i].zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+        axs[i].set_zlim(vmin, vmax)
+        
+        # Set angle (https://stackoverflow.com/a/47610615/12045808)
+        axs[i].view_init(25, 280)
 
-# Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
+        # Add a color bar which maps values to colors.
+        fig.colorbar(surf, ax=axs[i], shrink=0.5, aspect=10)
+        
+        axs[i].set_title(f"Temporal evolution of {crop_type}, {polarization}")
 
-# Customize the z axis.
-#ax.set_zlim(-1.01, 1.01)
-ax.zaxis.set_major_locator(LinearLocator(10))
-ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-ax.set_zlim(vmin, vmax)
-
-# Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=5)
-
-# Plot angle (https://stackoverflow.com/a/47610615/12045808)
-plt.gca().view_init(25, 280)
-
-plt.show()
+    #fig.gca().view_init(25, 280)
+    fig.tight_layout()
+    fig.show()
 ```
 
 ```python
-afgroede = 'Vinterraps'
-polarization = 'VH'
-num_field_ids = 32 
-sort_rows = True
-vmin = -30
-vmax = -5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-'''
-======================
-3D surface (color map)
-======================
-
-Demonstrates plotting a 3D surface colored with the coolwarm color map.
-The surface is made opaque by using antialiased=False.
-
-Also demonstrates using the LinearLocator and custom formatting for the
-z axis tick labels.
-'''
-
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import numpy as np
-mpl.style.use('seaborn')
-
-
-fig = plt.figure(figsize=(24, 12))
-ax = fig.gca(projection='3d')
-
-# Make data.
-x = np.linspace(1, 38, 38)  # Dates
-y = np.linspace(1, num_field_ids, num_field_ids)  # Fields
-X,Y = np.meshgrid(x,y)
-Z = df.to_numpy()
-
-# Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
-
-# Customize the z axis.
-#ax.set_zlim(-1.01, 1.01)
-ax.zaxis.set_major_locator(LinearLocator(10))
-ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-ax.set_zlim(vmin, vmax)
-
-# Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=5)
-
-# Plot angle (https://stackoverflow.com/a/47610615/12045808)
-plt.gca().view_init(25, 280)
-
-plt.show()
+plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=32, satellite='all', sort_rows=True)
 ```
 
 ```python
-afgroede = 'Vinterraps'
-polarization = 'VV'
-num_field_ids = 32 
-sort_rows = True
-vmin = -20
-vmax = 5
-
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-'''
-======================
-3D surface (color map)
-======================
-
-Demonstrates plotting a 3D surface colored with the coolwarm color map.
-The surface is made opaque by using antialiased=False.
-
-Also demonstrates using the LinearLocator and custom formatting for the
-z axis tick labels.
-'''
-
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import numpy as np
-mpl.style.use('seaborn')
-
-
-fig = plt.figure(figsize=(24, 12))
-ax = fig.gca(projection='3d')
-
-# Make data.
-x = np.linspace(1, 38, 38)  # Dates
-y = np.linspace(1, num_field_ids, num_field_ids)  # Fields
-X,Y = np.meshgrid(x,y)
-Z = df.to_numpy()
-
-# Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
-
-# Customize the z axis.
-#ax.set_zlim(-1.01, 1.01)
-ax.zaxis.set_major_locator(LinearLocator(10))
-ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-ax.set_zlim(vmin, vmax)
-
-# Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=5)
-
-# Plot angle (https://stackoverflow.com/a/47610615/12045808)
-plt.gca().view_init(25, 280)
-
-plt.show()
+plot_waterfall_all_polarizations(crop_type = 'Silomajs', num_fields=32, satellite='all', sort_rows=True)
 ```
 
 ```python
-afgroede = 'Vinterraps'
-polarization = 'VV-VH'
-num_field_ids = 32 
-sort_rows = True
-vmin = -10
-vmax = 25
+plot_waterfall_all_polarizations(crop_type = 'Kartofler, stivelses-', num_fields=32, satellite='all', sort_rows=True)
+```
 
-df = get_plot_df(polygons_year=2019, 
-                 satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                 fields='all', 
-                 satellite='S1A', 
-                 polarization=polarization,
-                 afgroede=afgroede)
-
-df = df.dropna()
-
-# Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
-
-if sort_rows:
-    # Sort by sum of each row
-    df = df.reset_index()
-    df = df.drop(columns=['field_id'])
-    idx = df.sum(axis=1).sort_values(ascending=False).index
-    df = df.iloc[idx]
-    
-    # Sort by specific column
-    #col = 30
-    #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
-
-'''
-======================
-3D surface (color map)
-======================
-
-Demonstrates plotting a 3D surface colored with the coolwarm color map.
-The surface is made opaque by using antialiased=False.
-
-Also demonstrates using the LinearLocator and custom formatting for the
-z axis tick labels.
-'''
-
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import numpy as np
-mpl.style.use('seaborn')
-
-
-fig = plt.figure(figsize=(24, 12))
-ax = fig.gca(projection='3d')
-
-# Make data.
-x = np.linspace(1, 38, 38)  # Dates
-y = np.linspace(1, num_field_ids, num_field_ids)  # Fields
-X,Y = np.meshgrid(x,y)
-Z = df.to_numpy()
-
-# Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
-
-# Customize the z axis.
-#ax.set_zlim(-1.01, 1.01)
-ax.zaxis.set_major_locator(LinearLocator(10))
-ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-ax.set_zlim(vmin, vmax)
-
-# Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=5)
-
-# Plot angle (https://stackoverflow.com/a/47610615/12045808)
-plt.gca().view_init(25, 280)
-
-plt.show()
+```python
+for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
+    print(f"Plotting {crop_type}")
+    plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='all', sort_rows=True)
 ```
 
 ```python
