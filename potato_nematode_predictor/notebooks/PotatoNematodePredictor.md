@@ -348,14 +348,13 @@ def get_plot_df(polygons_year=2019,
         df = ds.to_dataframe()
         df = df.reset_index()  # Removes MultiIndex
         df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
-        df = df.dropna()
 
         # Select satellites
         if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
             df = df[df['satellite']==satellite]
             
         # Select crop types
-        if not afgroede == 'all':  # Must be 'all' or name of crop type
+        if not crop_type == 'all':  # Must be 'all' or name of crop type
             df = df[df['afgroede']==crop_type]
     
         # Format the dataframe to work well with Seaborn for plotting
@@ -376,7 +375,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -388,7 +387,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -400,7 +399,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -412,7 +411,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -424,7 +423,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -436,7 +435,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -448,7 +447,7 @@ df = get_plot_df(polygons_year=2019,
 
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=45)
-ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df)
+ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
 ```python
@@ -477,6 +476,18 @@ ax = sns.pairplot(df, hue='satellite')
 ```
 
 ```python
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-06-20', '2019-06-22'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization='VH')
+
+df = df[['afgroede', 'stats_mean', 'stats_std', 'stats_min', 'stats_max', 'stats_median']]
+plt.figure(figsize=(24, 24))
+ax = sns.pairplot(df, hue='afgroede')
+```
+
+```python
 def plot_heatmap(crop_type = 'Vinterraps', polarization='VH', num_fields=128, satellite='all', sort_rows=True):
     df = get_plot_df(polygons_year=2019, 
                      satellite_dates=slice('2018-01-01', '2019-12-31'), 
@@ -488,7 +499,7 @@ def plot_heatmap(crop_type = 'Vinterraps', polarization='VH', num_fields=128, sa
     df = df.dropna()
 
     # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
-    df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_field_ids)
+    df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_fields)
 
     if sort_rows:
         # Sort by sum of each row
@@ -513,7 +524,7 @@ def plot_heatmap(crop_type = 'Vinterraps', polarization='VH', num_fields=128, sa
 
     plt.figure(figsize=(8, 8))
     cmap_label = "{}, stats_mean".format(polarization)
-    ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+    ax = sns.heatmap(df, vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
     title = "Temporal evolution of: {}".format(crop_type)
     ax.set_title(title)
     plt.show()
@@ -524,10 +535,10 @@ plot_heatmap(crop_type='Vinterraps', polarization='VV', num_fields=128, satellit
 ```
 
 ```python
-def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', num_fields=128, satellite='all', sort_rows=True):
+def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', num_fields=128, satellite='all', sort_rows=False):
     fig, axs = plt.subplots(1, 3)
     fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
-    fig.set_figheight(12)
+    fig.set_figheight(8)
     fig.set_figwidth(24) 
     
     polarizations = ['VV', 'VH', 'VV-VH']
@@ -558,15 +569,15 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', num_fields=128, sat
 
         # Get the min and max values depending on polarization
         if polarization == 'VV':
-            vmin, vmax = -20, 5
+            vmin, vmax = -15, 0
         elif polarization == 'VH':
-            vmin, vmax = -30, -5
+            vmin, vmax = -25, -10 
         elif polarization == 'VV-VH':
-            vmin, vmax = 0, 25
+            vmin, vmax = 5, 20
         else:
             raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
             
-        sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+        sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
         
     fig.show()
 ```
@@ -651,7 +662,7 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, s
         axs[i].view_init(25, 280)
 
         # Add a color bar which maps values to colors.
-        fig.colorbar(surf, ax=axs[i], shrink=0.5, aspect=10)
+        #fig.colorbar(surf, ax=axs[i], shrink=0.5, aspect=10)
         
         axs[i].set_title(f"Temporal evolution of {crop_type}, {polarization}")
 
@@ -661,21 +672,27 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, s
 ```
 
 ```python
-plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=32, satellite='all', sort_rows=True)
+plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=32, satellite='all', sort_rows=False)
 ```
 
 ```python
-plot_waterfall_all_polarizations(crop_type = 'Silomajs', num_fields=32, satellite='all', sort_rows=True)
+plot_waterfall_all_polarizations(crop_type = 'Silomajs', num_fields=32, satellite='all', sort_rows=False)
 ```
 
 ```python
-plot_waterfall_all_polarizations(crop_type = 'Kartofler, stivelses-', num_fields=32, satellite='all', sort_rows=True)
+plot_waterfall_all_polarizations(crop_type = 'Kartofler, stivelses-', num_fields=32, satellite='all', sort_rows=False)
 ```
 
 ```python
 for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
     print(f"Plotting {crop_type}")
-    plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='all', sort_rows=True)
+    plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='all', sort_rows=False)
+```
+
+```python
+for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
+    print(f"Plotting {crop_type}")
+    plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='S1A', sort_rows=False)
 ```
 
 ```python
