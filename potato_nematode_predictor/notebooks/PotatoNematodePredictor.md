@@ -595,7 +595,19 @@ plot_heatmap_all_polarizations(crop_type='Kartofler, stivelses-', num_fields=128
 ```
 
 ```python
-for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-01-01', '2019-01-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization='VV',
+                 crop_type='all')
+
+all_crop_types = df['afgroede'].unique()
+print(all_crop_types)
+```
+
+```python
+for crop_type in all_crop_types:  
     print(f"Plotting {crop_type}")
     plot_heatmap_all_polarizations(crop_type=crop_type, num_fields=128, satellite='all')
 ```
@@ -617,6 +629,10 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, s
                          crop_type=crop_type)
 
         df = df.dropna()
+        
+        # Get the dates (needed later for plotting)
+        dates = df['date'].unique()
+        num_dates = len(dates)
 
         # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
         df = df.pivot(index='field_id', columns='date', values='stats_mean').head(num_fields)
@@ -643,16 +659,16 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, s
             raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
             
         # Make data.
-        dates = len(df.columns)
-        x = np.linspace(1, dates, dates)  # Dates
+        x = np.linspace(1, num_dates, num_dates)  # Dates
         y = np.linspace(1, num_fields, num_fields)  # Fields
-        X,Y = np.meshgrid(x,y)
+        X,Y = np.meshgrid(x, y)
         Z = df.to_numpy()
 
         # Plot the surface.
         surf = axs[i].plot_surface(X, Y, Z, cmap=cm.coolwarm,
                                linewidth=0, antialiased=False)
 
+        
         # Customize the z axis.
         axs[i].zaxis.set_major_locator(LinearLocator(10))
         axs[i].zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
@@ -664,6 +680,7 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', num_fields=128, s
         # Add a color bar which maps values to colors.
         #fig.colorbar(surf, ax=axs[i], shrink=0.5, aspect=10)
         
+        axs[i].set_xticklabels(dates, rotation=45)
         axs[i].set_title(f"Temporal evolution of {crop_type}, {polarization}")
 
     #fig.gca().view_init(25, 280)
@@ -684,13 +701,19 @@ plot_waterfall_all_polarizations(crop_type = 'Kartofler, stivelses-', num_fields
 ```
 
 ```python
-for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
-    print(f"Plotting {crop_type}")
-    plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='all', sort_rows=False)
+df = get_plot_df(polygons_year=2019, 
+                 satellite_dates=slice('2019-01-01', '2019-01-31'), 
+                 fields='all', 
+                 satellite='all', 
+                 polarization='VV',
+                 crop_type='all')
+
+all_crop_types = df['afgroede'].unique()
+print(all_crop_types)
 ```
 
 ```python
-for crop_type in CROP_TYPES:  #TODO: Get potato fields also (CROP_TYPES are everything else than potato fields)
+for crop_type in all_crop_types:
     print(f"Plotting {crop_type}")
     plot_waterfall_all_polarizations(crop_type=crop_type, num_fields=32, satellite='S1A', sort_rows=False)
 ```
