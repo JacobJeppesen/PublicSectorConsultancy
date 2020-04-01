@@ -1,12 +1,13 @@
 import itertools
 import multiprocessing
-import fiona
+
 import geopandas
-import xarray as xr
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D  # For waterfall plot
+import xarray as xr
+
+sns.set_style('ticks')
 from matplotlib import cm  # For waterfall plot
 from matplotlib.ticker import LinearLocator, FormatStrFormatter  # For waterfall plot
 from tqdm.autonotebook import tqdm
@@ -253,8 +254,7 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
             vmin, vmax = 5, 20
         else:
             raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
-            
+
         sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
-        
+
     fig.show()
-    
