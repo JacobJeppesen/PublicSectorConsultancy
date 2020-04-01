@@ -2,6 +2,13 @@ import itertools
 import multiprocessing
 import fiona
 import geopandas
+import xarray as xr
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from mpl_toolkits.mplot3d import Axes3D  # For waterfall plot
+from matplotlib import cm  # For waterfall plot
+from matplotlib.ticker import LinearLocator, FormatStrFormatter  # For waterfall plot
 from tqdm.autonotebook import tqdm
 from rasterstats import zonal_stats, gen_zonal_stats
 
@@ -66,3 +73,188 @@ class RasterstatsMultiProc(object):
     def zonal_stats_partial(self, feats):
         """Wrapper for zonal stats, takes a list of features"""
         return zonal_stats(feats, self.tif, self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
+
+    
+def get_plot_df(polygons_year=2019, 
+                satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                fields='all', 
+                satellite='all', 
+                polarization='all',
+                crop_type='all',
+                netcdf_path=None):
+    # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
+    # Load the xarray dataset
+    #netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
+    #netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
+    with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
+        # Select dates, fields, and polarizations
+        ds = ds.sel(date=satellite_dates)
+        if not fields == 'all':  # Must be 'all' or array of integers (eg. [1, 2, 3, 4]) of field_ids
+            ds = ds.isel(field_id=fields) 
+        if not polarization == 'all':  # Must be 'all', 'VV', 'VH', or 'VV-VH'
+            ds = ds.sel(polarization=polarization) 
+
+        # Convert ds to dataframe
+        df = ds.to_dataframe()
+        df = df.reset_index()  # Removes MultiIndex
+        df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
+
+        # Select satellites
+        if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
+            df = df[df['satellite']==satellite]
+            
+        # Select crop types
+        if not crop_type == 'all':  # Must be 'all' or name of crop type
+            df = df[df['afgroede']==crop_type]
+    
+        # Format the dataframe to work well with Seaborn for plotting
+        df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+        df['field_id'] = ['$%s$' % x for x in df['field_id']]  # https://github.com/mwaskom/seaborn/issues/1653
+        df['afgkode'] = ['$%s$' % x for x in df['afgkode']]  # https://github.com/mwaskom/seaborn/issues/1653
+        df['relative_orbit'] = ['$%s$' % x for x in df['relative_orbit']]  # https://github.com/mwaskom/seaborn/issues/1653
+        
+    return df
+
+
+def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=True, netcdf_path=None):
+    fig, axs = plt.subplots(1, 3, subplot_kw={'projection': '3d'})
+    #fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
+    fig.set_figheight(8)
+    fig.set_figwidth(24) 
+    
+    polarizations = ['VV', 'VH', 'VV-VH']
+    for i, polarization in enumerate(polarizations):
+        df = get_plot_df(polygons_year=2019, 
+                         satellite_dates=satellite_dates, 
+                         fields='all', 
+                         satellite=satellite, 
+                         polarization=polarization,
+                         crop_type=crop_type,
+                         netcdf_path=netcdf_path)
+
+        df = df.dropna()
+        
+        # Get the dates (needed later for plotting)
+        dates = df['date'].unique()
+        num_dates = len(dates)
+
+        # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+        df = df.pivot(index='field_id', columns='date', values='stats_mean')
+        
+        # Drop fields having any date with a nan value, and pick num_fields from the remainder
+        df = df.dropna().head(num_fields)
+        
+        if sort_rows:
+            # Sort by sum of each row
+            df = df.reset_index()
+            df = df.drop(columns=['field_id'])
+            idx = df.sum(axis=1).sort_values(ascending=False).index
+            df = df.iloc[idx]
+
+            # Sort by specific column
+            #col = 0
+            #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+
+        # Get the min and max values depending on polarization
+        if polarization == 'VV':
+            vmin, vmax = -20, 5
+        elif polarization == 'VH':
+            vmin, vmax = -30, -5
+        elif polarization == 'VV-VH':
+            vmin, vmax = 0, 25
+        else:
+            raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
+            
+        # Make data.
+        x = np.linspace(1, num_dates, num_dates)  # Dates
+        y = np.linspace(1, num_fields, num_fields)  # Fields
+        X,Y = np.meshgrid(x, y)
+        Z = df.to_numpy()
+
+        # Plot the surface.
+        surf = axs[i].plot_surface(X, Y, Z, cmap=cm.coolwarm,
+                               linewidth=0, antialiased=False)
+        
+        # Set title 
+        axs[i].set_title(f"Temporal evolution of: {crop_type}, {polarization}")
+        
+        # Set angle (https://stackoverflow.com/a/47610615/12045808)
+        axs[i].view_init(25, 280)
+        
+        # Add a color bar which maps values to colors.
+        #fig.colorbar(surf, ax=axs[i], shrink=0.5, aspect=10)
+        
+        # Customize the z axis (backscattering value)
+        axs[i].zaxis.set_major_locator(LinearLocator(6))
+        axs[i].zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+        axs[i].set_zlim(vmin, vmax)
+        for tick in axs[i].zaxis.get_major_ticks():
+            tick.label1.set_horizontalalignment('left')
+        
+        # Customize the x axis (dates)
+        ticks_divider = int(np.ceil(num_dates/10))  # If more than 10 dates, skip every second tick, if more than 20 dates, skip every third ...
+        xticks = range(1, num_dates+1)[::ticks_divider]  # Array must be starting at 1
+        xticklabels = dates[::ticks_divider]
+        axs[i].set_xticks(xticks)
+        axs[i].set_xticklabels(xticklabels, rotation=75, horizontalalignment='right')
+        
+        # Customize the y axis (field ids)
+        for tick in axs[i].yaxis.get_major_ticks():
+            tick.label1.set_horizontalalignment('left')
+            tick.label1.set_verticalalignment('bottom')
+            tick.label1.set_rotation(-5)
+
+        # Set viewing distance (important to not cut off labels)
+        axs[i].dist = 11   
+
+    fig.tight_layout()
+    fig.show()
+
+    
+def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=False, netcdf_path=None):
+    fig, axs = plt.subplots(1, 3)
+    fig.suptitle(f"Temporal evolution of: {crop_type}", fontsize=16)
+    fig.set_figheight(8)
+    fig.set_figwidth(24) 
+    
+    polarizations = ['VV', 'VH', 'VV-VH']
+    for i, polarization in enumerate(polarizations):
+        df = get_plot_df(polygons_year=2019, 
+                         satellite_dates=satellite_dates, 
+                         fields='all', 
+                         satellite=satellite, 
+                         polarization=polarization,
+                         crop_type=crop_type,
+                         netcdf_path=netcdf_path)
+
+        # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+        df = df.pivot(index='field_id', columns='date', values='stats_mean')
+        
+        # Drop fields having any date with a nan value, and pick num_fields from the remainder
+        df = df.dropna().head(num_fields)
+        
+        if sort_rows:
+            # Sort by sum of each row
+            df = df.reset_index()
+            df = df.drop(columns=['field_id'])
+            idx = df.sum(axis=1).sort_values(ascending=False).index
+            df = df.iloc[idx]
+
+            # Sort by specific column
+            #col = 0
+            #df = df.sort_values(by=df.columns.tolist()[col], ascending=False) 
+
+        # Get the min and max values depending on polarization
+        if polarization == 'VV':
+            vmin, vmax = -15, 0
+        elif polarization == 'VH':
+            vmin, vmax = -25, -10 
+        elif polarization == 'VV-VH':
+            vmin, vmax = 5, 20
+        else:
+            raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
+            
+        sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+        
+    fig.show()
+    
