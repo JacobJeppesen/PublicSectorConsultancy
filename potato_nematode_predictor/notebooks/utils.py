@@ -143,7 +143,7 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=s
         df = df.pivot(index='field_id', columns='date', values='stats_mean')
         
         # Drop fields having any date with a nan value, and pick num_fields from the remainder
-        df = df.dropna().head(num_fields)
+        df = df.dropna().sample(n=num_fields, random_state=1)
         
         if sort_rows:
             # Sort by sum of each row
@@ -232,8 +232,8 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
         df = df.pivot(index='field_id', columns='date', values='stats_mean')
         
         # Drop fields having any date with a nan value, and pick num_fields from the remainder
-        df = df.dropna().head(num_fields)
-        
+        df = df.dropna().sample(n=num_fields, random_state=1)
+
         if sort_rows:
             # Sort by sum of each row
             df = df.reset_index()
