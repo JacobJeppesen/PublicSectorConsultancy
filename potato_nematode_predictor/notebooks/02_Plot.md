@@ -1,7 +1,8 @@
-```python
-import xarray as xr
+```python pycharm={"is_executing": false}
 import matplotlib.pyplot as plt
-import seaborn as sns; sns.set()
+import seaborn as sns;
+import xarray as xr
+sns.set_style('ticks')
 from pathlib import Path
 from utils import get_plot_df, plot_heatmap_all_polarizations, plot_waterfall_all_polarizations
 
@@ -25,17 +26,17 @@ PROJ_PATH = Path.cwd().parent
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 ```
 
-```python
+```python pycharm={"is_executing": false}
 netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc')
 ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
 ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
 ```
 
-```python
+```python pycharm={"is_executing": false}
 ds.close()
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2019-01-01', '2019-01-31'), 
                  fields='all', 
@@ -48,7 +49,7 @@ ALL_CROP_TYPES = df['afgroede'].unique()
 print(ALL_CROP_TYPES)
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2019-01-01', '2019-03-31'), 
                  fields='all', 
@@ -62,7 +63,7 @@ plt.figure(figsize=(24, 8))
 ax = sns.scatterplot(x='stats_mean', y='stats_std', hue='satellite', data=df)
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2019-01-01', '2019-03-31'), 
                  fields='all', 
@@ -75,7 +76,7 @@ plt.figure(figsize=(24, 24))
 ax = sns.pairplot(df, hue='satellite')
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2019-06-20', '2019-06-22'), 
                  fields='all', 
@@ -88,7 +89,7 @@ plt.figure(figsize=(24, 24))
 ax = sns.pairplot(df, hue='afgroede')
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
@@ -97,11 +98,11 @@ df = get_plot_df(polygons_year=2019,
                  netcdf_path=netcdf_path)
 
 plt.figure(figsize=(24, 8))
-plt.xticks(rotation=45)
+plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
@@ -110,11 +111,11 @@ df = get_plot_df(polygons_year=2019,
                  netcdf_path=netcdf_path)
 
 plt.figure(figsize=(24, 8))
-plt.xticks(rotation=45)
+plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
-```python
+```python pycharm={"is_executing": false}
 df = get_plot_df(polygons_year=2019, 
                  satellite_dates=slice('2018-01-01', '2019-12-31'), 
                  fields='all',#range(100), 
@@ -122,12 +123,13 @@ df = get_plot_df(polygons_year=2019,
                  polarization='VH',
                  netcdf_path=netcdf_path)
 
+df = df[df['afgroede'].isin(['Silomajs', 'Vinterhvede', 'Kartofler, stivelses-'])]
 plt.figure(figsize=(24, 8))
-plt.xticks(rotation=45)
+plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='date', y='stats_mean', hue='afgroede', data=df, ci='sd')
 ```
 
-```python
+```python pycharm={"is_executing": false}
 for crop_type in ALL_CROP_TYPES:
     print(f"Plotting {crop_type}")
     plot_waterfall_all_polarizations(crop_type=crop_type, 
@@ -138,17 +140,17 @@ for crop_type in ALL_CROP_TYPES:
                                      netcdf_path=netcdf_path)
 ```
 
-```python
+```python pycharm={"is_executing": false}
 for crop_type in ALL_CROP_TYPES:  
     print(f"Plotting {crop_type}")
     plot_heatmap_all_polarizations(crop_type=crop_type,
-                                   satellite_dates=slice('2019-01-01', '2019-12-31'),
+                                   satellite_dates=slice('2018-01-01', '2019-12-31'),
                                    num_fields=128, 
                                    satellite='all', 
                                    netcdf_path=netcdf_path)
 ```
 
-```python
+```python pycharm={"is_executing": false}
 # Idea for violin plot: Use it to compare individual dates on the x-axis. 
 # For instance have 5 dates and 2 crop types, and then use x=dates, y=stats-mean, hue=afgroede. 
 # This would give you a comparison of the distributions for two crop types for five different dates. 

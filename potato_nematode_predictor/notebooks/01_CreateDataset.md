@@ -127,7 +127,7 @@ def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhve
     df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (ie. fields with zero area after buffering)
     
     # Extract crop types 
-    max_fields_per_type = 5
+    max_fields_per_type = 5000
     df_extracted = geopandas.GeoDataFrame(columns = df.columns, crs=df.crs)
     potato_types = df[df['afgroede'].str.contains('kartof', case=False)]['afgroede'].unique()
     for potato_type in potato_types:  
