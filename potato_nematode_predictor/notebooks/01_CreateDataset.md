@@ -36,7 +36,9 @@ PROJ_PATH = Path.cwd().parent
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
-CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', 'Permanent græs, normalt udbytte']  
+CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', 'Vårhavre', 'Vinterhybridrug', 'Vårhvede',
+              'Grønkorn af vårbyg', 'Vårbyg, helsæd', 'Majs til modenhed', 'Skovdrift, alm.', 'Sukkerroer til fabrik',
+              'Juletræer og pyntegrønt på landbrugsjord', 'Permanent græs, normalt udbytte']  
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False
@@ -89,7 +91,7 @@ for zipfile in (PROJ_PATH / 'data' / 'external').glob('**/*.zip'):
 Now the most common crop types for the individual years
 
 ```python
-if False:  # Set it to True if you want to find the results
+if True:  # Set it to True if you want to find the results
     for df_name in FIELD_POLYGONS:
         shp_path = list((PROJ_PATH / 'data' / 'raw' / df_name).glob('**/*.shp'))[0]
         df = geopandas.read_file(str(shp_path))   
@@ -98,7 +100,7 @@ if False:  # Set it to True if you want to find the results
         df.columns = map(str.lower, df.columns)
 
         # Find most common crop types
-        n = 15 
+        n = 40 
         crop_types = df['afgroede'].value_counts()[:n].index.tolist()
         print("### Analyzing " + df_name + " ###")
         for crop_type in crop_types:
@@ -120,18 +122,27 @@ def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhve
     # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
     df.columns = map(str.lower, df.columns)
     
-    # Extract crop types 
-    df_extracted = df[df['afgroede'].str.contains('kartof', case=False)]
-    if not only_potato:
-        for crop_type in crop_types:  
-            df_crop = df[df['afgroede'] == crop_type]
-            df_crop = df_crop.sample(n=5000)  # Get a maximum of n fields for each crop type
-            df_extracted = df_extracted.append(df_crop)
-    df = df_extracted
-    
     # Buffer the geometries to take imprecise coregistration into consideration (important for zonal statistics)
     df['geometry'] = df['geometry'].values.buffer(BUFFER_SIZE)
     df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (ie. fields with zero area after buffering)
+    
+    # Extract crop types 
+    max_fields_per_type = 5
+    df_extracted = geopandas.GeoDataFrame(columns = df.columns, crs=df.crs)
+    potato_types = df[df['afgroede'].str.contains('kartof', case=False)]['afgroede'].unique()
+    for potato_type in potato_types:  
+        df_crop = df[df['afgroede'] == potato_type]
+        if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
+            df_crop = df_crop.sample(n=max_fields_per_type)  
+        df_extracted = df_extracted.append(df_crop)
+    
+    if not only_potato:
+        for crop_type in crop_types:  
+            df_crop = df[df['afgroede'] == crop_type]
+            if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
+                df_crop = df_crop.sample(n=max_fields_per_type)  
+            df_extracted = df_extracted.append(df_crop)
+    df = df_extracted
     
     # Find the total number of fields
     num_fields = df.shape[0]
@@ -168,10 +179,12 @@ for df_name in FIELD_POLYGONS:
         with rasterio.open(tif) as src:
             tif_crs = src.crs
             #print("Projection used in tif: " + str(tif_crs))
-        df = df.to_crs({'init': tif_crs})
+        #df = df.to_crs({'init': tif_crs})
+        df = df.to_crs(tif_crs)
         
         # Set the CRS in the geodataframe to be wkt format (otherwise you won't be able to save as a shapefile)
-        df.crs = df.crs['init'].to_wkt()
+        #df.crs = df.crs['init'].to_wkt()
+        df.crs = df.crs.to_wkt()
 
         if not shp_dest_path.parent.exists():
             os.makedirs(shp_dest_path.parent)
