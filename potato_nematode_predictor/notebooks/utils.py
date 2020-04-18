@@ -76,14 +76,13 @@ class RasterstatsMultiProc(object):
         """Wrapper for zonal stats, takes a list of features"""
         return zonal_stats(feats, self.tif, self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
 
-    
-def get_plot_df(polygons_year=2019, 
-                satellite_dates=slice('2019-01-01', '2019-12-31'), 
-                fields='all', 
-                satellite='all', 
-                polarization='all',
-                crop_type='all',
-                netcdf_path=None):
+def get_df(polygons_year=2019, 
+           satellite_dates=slice('2019-01-01', '2019-12-31'), 
+           fields='all', 
+           satellite='all', 
+           polarization='all',
+           crop_type='all',
+           netcdf_path=None):
     # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
     # Load the xarray dataset
     #netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
@@ -108,16 +107,33 @@ def get_plot_df(polygons_year=2019,
         # Select crop types
         if not crop_type == 'all':  # Must be 'all' or name of crop type
             df = df[df['afgroede']==crop_type]
-    
-        # Format the dataframe to work well with Seaborn for plotting
-        df['date'] = df['date'].dt.strftime('%Y-%m-%d')
-        df['field_id'] = ['$%s$' % x for x in df['field_id']]  # https://github.com/mwaskom/seaborn/issues/1653
-        df['afgkode'] = ['$%s$' % x for x in df['afgkode']]  # https://github.com/mwaskom/seaborn/issues/1653
-        df['relative_orbit'] = ['$%s$' % x for x in df['relative_orbit']]  # https://github.com/mwaskom/seaborn/issues/1653
         
     return df
 
-
+def get_plot_df(polygons_year=2019, 
+                satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                fields='all', 
+                satellite='all', 
+                polarization='all',
+                crop_type='all',
+                netcdf_path=None):
+    
+    df = get_df(polygons_year=polygons_year, 
+                satellite_dates=satellite_dates, 
+                fields=fields, 
+                satellite=satellite, 
+                polarization=polarization,
+                crop_type=crop_type,
+                netcdf_path=netcdf_path)
+    
+    # Format the dataframe to work well with Seaborn for plotting
+    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+    df['field_id'] = ['$%s$' % x for x in df['field_id']]  # https://github.com/mwaskom/seaborn/issues/1653
+    df['afgkode'] = ['$%s$' % x for x in df['afgkode']]  # https://github.com/mwaskom/seaborn/issues/1653
+    df['relative_orbit'] = ['$%s$' % x for x in df['relative_orbit']]  # https://github.com/mwaskom/seaborn/issues/1653
+        
+    return df
+    
 def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=True, netcdf_path=None):
     fig, axs = plt.subplots(1, 3, subplot_kw={'projection': '3d'})
     #fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
