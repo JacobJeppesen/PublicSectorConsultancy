@@ -10,6 +10,7 @@ import xarray as xr
 sns.set_style('ticks')
 from matplotlib import cm  # For waterfall plot
 from matplotlib.ticker import LinearLocator, FormatStrFormatter  # For waterfall plot
+from mpl_toolkits.mplot3d import Axes3D
 from tqdm.autonotebook import tqdm
 from rasterstats import zonal_stats, gen_zonal_stats
 
@@ -232,7 +233,11 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
         df = df.pivot(index='field_id', columns='date', values='stats_mean')
         
         # Drop fields having any date with a nan value, and pick num_fields from the remainder
-        df = df.dropna().sample(n=num_fields, random_state=1)
+        df = df.dropna()
+        if num_fields > df.shape[0]:
+            num_fields = df.shape[0]
+            print(f"Only {num_fields} fields were available for plotting")
+        df = df.sample(n=num_fields, random_state=1)
 
         if sort_rows:
             # Sort by sum of each row
