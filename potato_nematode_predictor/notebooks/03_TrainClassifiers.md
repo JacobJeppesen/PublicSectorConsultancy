@@ -85,8 +85,8 @@ df_sklearn = df_sklearn.drop_duplicates().reset_index(drop=True)
 ```
 
 ```python
-#df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
 crop_codes = df_sklearn['afgkode'].unique()
 mapping_dict = {}
 class_names = [] 
@@ -161,11 +161,32 @@ clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_n
 ```
 
 ```python
+try:  # If auto-sklearn is installed 
+    import autosklearn.classification
+except:  # Else install auto-sklearn (https://automl.github.io/auto-sklearn/master/installation.html and https://hub.docker.com/r/alfranz/automl/dockerfile) 
+    !sudo apt-get update && sudo apt-get install -y swig curl
+    !curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install --default-timeout=100
+    !pip install auto-sklearn
+```
+
+```python
+import autosklearn.classification
+
+# Instantiate and evaluate classifier
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=1800, per_run_time_limit=360, 
+                                                       ml_memory_limit=4096, n_jobs=24)
+clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+```
+
+```python
 # https://automl.github.io/auto-sklearn/master/installation.html#installing-auto-sklearn
-#!sudo apt-get update
-#!sudo apt-get install -yy build-essential swig
-#!curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install
-#!pip install auto-sklearn
+!sudo apt-get update
+!sudo apt-get install -yy build-essential swig
+!conda install -y gxx_linux-64 gcc_linux-64 swig
+!curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install
+!pip install pyrfr==0.4.0
+!pip install sklearn==0.21.3
+!pip install auto-sklearn
 ```
 
 ```python
@@ -173,22 +194,41 @@ clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_n
 
 #clf = autosklearn.classification.AutoSklearnClassifier()
 #clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
+!pip install scikit-learn==0.22
 ```
 
 ```python
-#import autosklearn.classification
-#import sklearn.model_selection
-#import sklearn.datasets
-#import sklearn.metrics
-#X, y = sklearn.datasets.load_digits(return_X_y=True)
-#X_train, X_test, y_train, y_test = \
-#        sklearn.model_selection.train_test_split(X, y, random_state=1)
-#automl = autosklearn.classification.AutoSklearnClassifier()
-#automl.fit(X_train, y_train)
-#y_hat = automl.predict(X_test)
-#print("Accuracy score", sklearn.metrics.accuracy_score(y_test, y_hat))
+try:  # If auto-sklearn is installed 
+    import autosklearn.classification
+except:  # Else install auto-sklearn (https://automl.github.io/auto-sklearn/master/installation.html and https://hub.docker.com/r/alfranz/automl/dockerfile) 
+    !sudo apt-get update && sudo apt-get install -y swig curl
+    !curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install --default-timeout=100
+    !pip install --default-timeout=100 auto-sklearn
+
+
+import sklearn.model_selection
+import sklearn.datasets
+import sklearn.metrics
+X, y = sklearn.datasets.load_digits(return_X_y=True)
+X_train, X_test, y_train, y_test = \
+        sklearn.model_selection.train_test_split(X, y, random_state=1)
+automl = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=240, per_run_time_limit=20, 
+                                                          ml_memory_limit=4096, n_jobs=16)
+automl.fit(X_train, y_train)
+y_hat = automl.predict(X_test)
+print("Accuracy score", sklearn.metrics.accuracy_score(y_test, y_hat))
 ```
 
 ```python
-np.show_config()
+!sudo apt-get update && sudo apt-get install -y swig curl
+!curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install --default-timeout=100
+!pip install --default-timeout=100 auto-sklearn
+```
+
+```python
+
+```
+
+```python
+
 ```

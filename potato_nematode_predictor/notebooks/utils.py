@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import xarray as xr
+import pandas as pd
 
 sns.set_style('ticks')
 from time import time
@@ -138,6 +139,50 @@ def get_plot_df(polygons_year=2019,
     df['relative_orbit'] = ['$%s$' % x for x in df['relative_orbit']]  # https://github.com/mwaskom/seaborn/issues/1653
         
     return df
+
+
+def get_sklearn_df(polygons_year=2019, 
+                   satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                   fields='all', 
+                   satellite='all', 
+                   polarization='all',
+                   crop_type='all',
+                   netcdf_path=None):
+    
+    if polarization == 'all':
+        polarizations = ['VV', 'VH', 'VV-VH']
+
+    # Create the df format to be used by scikit-learn
+    for i, polarization_val in enumerate(polarizations):
+        df_polarization = get_df(polygons_year=polygons_year, 
+                                 satellite_dates=satellite_dates, 
+                                 fields=fields, 
+                                 satellite=satellite, 
+                                 polarization=polarization_val,
+                                 netcdf_path=netcdf_path)
+
+        # Extract a mapping of field_ids to crop type
+        if i == 0:
+            df_sklearn = df_polarization[['field_id', 'afgkode', 'afgroede']]
+
+        # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
+        df_polarization = df_polarization.pivot(index='field_id', columns='date', values='stats_mean')
+
+        # Add polarization to column names
+        df_polarization.columns = [str(col)[:10]+f'_{polarization_val}' for col in df_polarization.columns]  
+
+        # Merge the polarization dataframes into one dataframe
+        df_polarization = df_polarization.reset_index()  # Creates new indices and a 'field_id' column (field id was used as indices before)
+        df_sklearn = pd.merge(df_sklearn, df_polarization, on='field_id') 
+
+    # Drop fields having nan values
+    df_sklearn = df_sklearn.dropna()
+
+    # The merge operation for some reason made duplicates (there was a bug reported on this earlier), so drop duplicates and re-index the df
+    df_sklearn = df_sklearn.drop_duplicates().reset_index(drop=True)
+    
+    return df_sklearn
+    
     
 def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=True, netcdf_path=None):
     fig, axs = plt.subplots(1, 3, subplot_kw={'projection': '3d'})
