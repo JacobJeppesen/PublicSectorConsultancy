@@ -15,7 +15,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from tqdm.autonotebook import tqdm
 from rasterstats import zonal_stats, gen_zonal_stats
 from sklearn.preprocessing import StandardScaler             # Feature scaling
-from sklearn.model_selection import train_test_split         # Split data into train and test set
 from sklearn.metrics import classification_report            # Summary of classifier performance
 from sklearn.metrics import confusion_matrix                 # Confusion matrix
 from sklearn.metrics import accuracy_score

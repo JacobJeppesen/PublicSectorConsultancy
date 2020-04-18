@@ -1,10 +1,12 @@
 ```python
 import numpy as np
+import pandas as pd
 import xarray as xr
 import seaborn as sns
 
 from pathlib import Path
 from tqdm.autonotebook import tqdm
+from sklearn.model_selection import train_test_split         # Split data into train and test set
 
 from utils import get_df, evaluate_classifier
 
@@ -47,7 +49,7 @@ df = df.dropna()
 # Create the df format to be used by scikit-learn
 for i, polarization in enumerate(['VV', 'VH', 'VV-VH']):
     df_polarization = get_df(polygons_year=2019, 
-                             satellite_dates=slice('2019-03-01', '2019-07-31'), 
+                             satellite_dates=slice('2018-01-01', '2019-12-31'), 
                              fields='all', 
                              satellite='all', 
                              polarization=polarization,
@@ -84,7 +86,7 @@ df_sklearn = df_sklearn.drop_duplicates().reset_index(drop=True)
 
 ```python
 #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug', 'Vårhvede'])]
+#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
 crop_codes = df_sklearn['afgkode'].unique()
 mapping_dict = {}
 class_names = [] 
@@ -106,7 +108,7 @@ array = df_sklearn_remapped.values
 X = np.float32(array[:,3:])  # The features 
 
 # Define the target (dependent) variable as labels.
-y = np.int16(array[:,1])  # The column 'afgkode'
+y = np.int8(array[:,1])  # The column 'afgkode'
 ```
 
 ```python
@@ -116,6 +118,14 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
 print(f"Train samples:      {len(y_train)}")
 print(f"Test samples:       {len(y_test)}")
 print(f"Number of features: {len(X[0,:])}")
+```
+
+```python
+from sklearn.tree import DecisionTreeClassifier              
+
+# Instantiate and evaluate classifier
+clf = DecisionTreeClassifier()
+clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=False)
 ```
 
 ```python
@@ -137,34 +147,48 @@ clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_n
 ```
 
 ```python
+from sklearn.svm import SVC   
+
+# Instantiate and evaluate classifier
+clf = SVC(kernel='linear')
+clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+```
+
+```python
+# Instantiate and evaluate classifier
+clf = SVC(kernel='rbf')
+clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+```
+
+```python
 # https://automl.github.io/auto-sklearn/master/installation.html#installing-auto-sklearn
-!sudo apt-get update
-!sudo apt-get install -yy build-essential swig
-!curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install
-!pip install auto-sklearn
+#!sudo apt-get update
+#!sudo apt-get install -yy build-essential swig
+#!curl https://raw.githubusercontent.com/automl/auto-sklearn/master/requirements.txt | xargs -n 1 -L 1 pip install
+#!pip install auto-sklearn
 ```
 
 ```python
-import autosklearn.classification
+#import autosklearn.classification
 
-clf = autosklearn.classification.AutoSklearnClassifier()
-clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
+#clf = autosklearn.classification.AutoSklearnClassifier()
+#clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
 ```
 
 ```python
-import autosklearn.classification
-import sklearn.model_selection
-import sklearn.datasets
-import sklearn.metrics
-X, y = sklearn.datasets.load_digits(return_X_y=True)
-X_train, X_test, y_train, y_test = \
-        sklearn.model_selection.train_test_split(X, y, random_state=1)
-automl = autosklearn.classification.AutoSklearnClassifier()
-automl.fit(X_train, y_train)
-y_hat = automl.predict(X_test)
-print("Accuracy score", sklearn.metrics.accuracy_score(y_test, y_hat))
+#import autosklearn.classification
+#import sklearn.model_selection
+#import sklearn.datasets
+#import sklearn.metrics
+#X, y = sklearn.datasets.load_digits(return_X_y=True)
+#X_train, X_test, y_train, y_test = \
+#        sklearn.model_selection.train_test_split(X, y, random_state=1)
+#automl = autosklearn.classification.AutoSklearnClassifier()
+#automl.fit(X_train, y_train)
+#y_hat = automl.predict(X_test)
+#print("Accuracy score", sklearn.metrics.accuracy_score(y_test, y_hat))
 ```
 
 ```python
-
+np.show_config()
 ```
