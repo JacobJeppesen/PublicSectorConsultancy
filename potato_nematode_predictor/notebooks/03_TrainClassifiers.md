@@ -86,8 +86,8 @@ df_sklearn = df_sklearn.drop_duplicates().reset_index(drop=True)
 ```
 
 ```python
-#df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
 crop_codes = df_sklearn['afgkode'].unique()
 mapping_dict = {}
 class_names = [] 
@@ -177,22 +177,22 @@ import autosklearn.classification
 #clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
 #                                                       ml_memory_limit=4096, n_jobs=12,  resampling_strategy='cv',
 #                                                       resampling_strategy_arguments={'folds': 5},)
-clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-                                                       ml_memory_limit=8192, n_jobs=12)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=False)
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=240, per_run_time_limit=60, 
+                                                       ml_memory_limit=4096, n_jobs=24)
+clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
 
 # Then train the ensemble on the whole training dataset
 # https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
 ```
 
 ```python
-clf_trained[0].refit(X_train, y_train)
+#clf_trained[0].refit(X_train, y_train)
 ```
 
 ```python
-predictions = clf.predict(X_test)
-report = classification_report(y_test, predictions, target_names=class_names)
-print(report)
+#predictions = clf.predict(X_test)
+#report = classification_report(y_test, predictions, target_names=class_names)
+#print(report)
 ```
 
 ```python
