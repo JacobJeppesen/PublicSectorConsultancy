@@ -402,11 +402,7 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     t0 = time()
 
     # Fit the classifier on the training features and labels
-    # ====================== YOUR CODE HERE =======================
-
     clf.fit(X_train, y_train)
-
-    # =============================================================
     
     # Calculate and print training time
     print("Training time:", round(time()-t0, 4), "s")
@@ -415,11 +411,7 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     t1 = time()
     
     # Use the trained classifier to classify the test data
-    # ====================== YOUR CODE HERE =======================
-
     predictions = clf.predict(X_test)
-
-    # =============================================================
     
     # Calculate and print prediction time
     print("Prediction time:", round(time()-t1, 4), "s")
