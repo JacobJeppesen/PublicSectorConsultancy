@@ -8,11 +8,17 @@ import seaborn as sns
 import xarray as xr
 
 sns.set_style('ticks')
+from time import time
 from matplotlib import cm  # For waterfall plot
 from matplotlib.ticker import LinearLocator, FormatStrFormatter  # For waterfall plot
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm.autonotebook import tqdm
 from rasterstats import zonal_stats, gen_zonal_stats
+from sklearn.preprocessing import StandardScaler             # Feature scaling
+from sklearn.model_selection import train_test_split         # Split data into train and test set
+from sklearn.metrics import classification_report            # Summary of classifier performance
+from sklearn.metrics import confusion_matrix                 # Confusion matrix
+from sklearn.metrics import accuracy_score
 
 
 class RasterstatsMultiProc(object):
@@ -279,3 +285,115 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
         sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
 
     fig.show()
+
+def plot_confusion_matrix(cm, classes):
+    # Modified form of https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    # Create figure
+    if len(classes) < 5:
+        plt.figure(figsize=(7, 7))
+    else: 
+        plt.figure(figsize=(20, 20))
+
+    # Plot non-normalized confusion matrix
+    plt.subplot(121)
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title('Confusion matrix')
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90)
+    plt.yticks(tick_marks, classes)
+
+    fmt = 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout(w_pad=8)
+    
+    # Plot normalized confusion matrix
+    plt.subplot(122)
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title('Normalized confusion matrix')
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.tight_layout(w_pad=8)
+    
+def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False):
+    """
+    This function evaluates a classifier. It measures training and prediction time, and 
+    prints performance metrics and a confustion matrix. The returned classifier and 
+    scaler are fitted to the training data, and can be used to predict new samples.
+    """
+    
+    # Perform feature scaling
+    scaler = StandardScaler()  # Scale to mean = 0 and std_dev = 1
+    if feature_scale:
+        # ====================== YOUR CODE HERE =======================
+
+        X_train = scaler.fit_transform(X_train)  # Fit to training data and then scale training data
+        X_test = scaler.transform(X_test)  # Scale test data based on the scaler fitted to the training data
+
+        # =============================================================
+        
+    # Store the time so we can calculate training time later
+    t0 = time()
+
+    # Fit the classifier on the training features and labels
+    # ====================== YOUR CODE HERE =======================
+
+    clf.fit(X_train, y_train)
+
+    # =============================================================
+    
+    # Calculate and print training time
+    print("Training time:", round(time()-t0, 4), "s")
+
+    # Store the time so we can calculate prediction time later
+    t1 = time()
+    
+    # Use the trained classifier to classify the test data
+    # ====================== YOUR CODE HERE =======================
+
+    predictions = clf.predict(X_test)
+
+    # =============================================================
+    
+    # Calculate and print prediction time
+    print("Prediction time:", round(time()-t1, 4), "s")
+
+    # Evaluate the model
+    train_accuracy = clf.score(X_train, y_train)
+    test_accuracy = clf.score(X_test, y_test)
+    report = classification_report(y_test, predictions, target_names=class_names)
+
+    # Print the reports
+    print("\nReport:\n")
+    print("Train accuracy: {}".format(round(train_accuracy, 4)))
+    print("Test accuracy: {}".format(round(test_accuracy, 4)))
+    print("\n", report)
+    
+    # Plot confusion matrices
+    cnf_matrix = confusion_matrix(y_test, predictions)
+    plot_confusion_matrix(cnf_matrix, classes=class_names)
+    
+    # Return the trained classifier to be used on future predictions
+    return clf, scaler
