@@ -236,17 +236,48 @@ clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, clas
 ```
 
 ```python
-#clf_trained[0].refit(X_train, y_train)
+import autosklearn.classification
+
+# Instantiate and evaluate classifier
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=7200, per_run_time_limit=360, 
+                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
+                                                       resampling_strategy_arguments={'folds': 5},)
+#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
+#                                                       ml_memory_limit=32768, n_jobs=24)
+clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
+
+# Then train the ensemble on the whole training dataset
+# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
 ```
 
 ```python
-#predictions = clf.predict(X_test)
-#report = classification_report(y_test, predictions, target_names=class_names)
-#print(report)
+#clf_trained.show_models()
 ```
 
 ```python
-#clf.show_models()
+import autosklearn.classification
+
+# Instantiate and evaluate classifier
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=7200, per_run_time_limit=720, 
+                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
+                                                       resampling_strategy_arguments={'folds': 5},)
+#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
+#                                                       ml_memory_limit=32768, n_jobs=24)
+clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
+
+# Then train the ensemble on the whole training dataset
+# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
+```
+
+```python
+# Take a look at https://towardsdatascience.com/svm-hyper-parameter-tuning-using-gridsearchcv-49c0bc55ce29
+
+# Note: Parse the grid as a clf - it should work as long as refit=True). Remember to set n_jobs.
+grid = GridSearchCV(SVC(),param_grid,refit=True,verbose=2)
+grid.fit(X_train,y_train)
+grid_predictions = grid.predict(X_test)
+print(confusion_matrix(y_test,grid_predictions))
+print(classification_report(y_test,grid_predictions))
 ```
 
 ```python
