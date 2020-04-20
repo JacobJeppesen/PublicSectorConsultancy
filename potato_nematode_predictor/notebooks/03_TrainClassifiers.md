@@ -26,6 +26,30 @@ xr.set_options(display_style="html")
 
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
+
+# Mapping dict
+mapping_dict_crop_types = {
+    'Kartofler, stivelses-': 'Potato',
+    'Kartofler, lægge- (egen opformering)': 'Potato',
+    'Kartofler, andre': 'Potato',
+    'Kartofler, spise-': 'Potato',
+    'Kartofler, lægge- (certificerede)': 'Potato',
+    'Vårbyg': 'Barley',
+    'Vinterbyg': 'Barley',
+    'Grønkorn af vårbyg': 'Barley',
+    'Vårbyg, helsæd': 'Barley',
+    'Vinterhvede': 'Wheat',
+    'Vårhvede': 'Wheat',
+    'Vinterhybridrug': 'Rye',
+    'Vårhavre': 'Oat',
+    'Silomajs': 'Maize',
+    'Majs til modenhed': 'Maize',
+    'Vinterraps': 'Rapeseed',
+    'Sukkerroer til fabrik': 'Sugarbeet',
+    'Permanent græs, normalt udbytte': 'Grass',
+    'Skovdrift, alm.': 'Forest',
+    'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
+}
 ```
 
 ```python
@@ -50,7 +74,7 @@ df = df.dropna()
 # Create the df format to be used by scikit-learn
 for i, polarization in enumerate(['VV', 'VH', 'VV-VH']):
     df_polarization = get_df(polygons_year=2019, 
-                             satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                             satellite_dates=slice('2019-01-01', '2019-10-01'), 
                              fields='all', 
                              satellite='all', 
                              polarization=polarization,
@@ -86,8 +110,31 @@ df_sklearn = df_sklearn.drop_duplicates().reset_index(drop=True)
 ```
 
 ```python
-df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+#df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+
+df_sklearn_remapped = df_sklearn.copy()
+
+df_sklearn_remapped.insert(3, 'Crop type', '')
+df_sklearn_remapped.insert(4, 'Label ID', 0)
+mapping_dict = {}
+class_names = [] 
+i = 0
+for key, value in mapping_dict_crop_types.items():
+    df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
+    if value not in class_names:
+        class_names.append(value)
+        mapping_dict[value] = i
+        i += 1
+    
+    #df_sklearn = df_sklearn.replace(key, value)
+    
+for key, value in mapping_dict.items():
+    df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
+print(f"Crop types: {class_names}")
+```
+
+```python
 crop_codes = df_sklearn['afgkode'].unique()
 mapping_dict = {}
 class_names = [] 
@@ -103,13 +150,28 @@ print(f"Crop types: {class_names}")
 ```
 
 ```python
+crop_types = df_sklearn['afgroede'].unique()
+mapping_dict = {}
+class_names = [] 
+
+for i, crop_type in enumerate(crop_types):
+    mapping_dict[crop_code] = i
+    crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
+    class_names.append(crop_type)
+
+df_sklearn_remapped = df_sklearn.copy()
+df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
+print(f"Crop types: {class_names}")
+```
+
+```python
 array = df_sklearn_remapped.values
 
 # Define the independent variables as features.
-X = np.float32(array[:,3:])  # The features 
+X = np.float32(array[:,5:])  # The features 
 
 # Define the target (dependent) variable as labels.
-y = np.int8(array[:,1])  # The column 'afgkode'
+y = np.int8(array[:,4])  # The column 'afgkode'
 ```
 
 ```python
@@ -126,14 +188,15 @@ from sklearn.tree import DecisionTreeClassifier
 
 # Instantiate and evaluate classifier
 clf = DecisionTreeClassifier()
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=False)
+clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
 ```
 
 ```python
 from sklearn.linear_model import LogisticRegression          
 
 # Instantiate classifier.
-clf = LogisticRegression(solver='newton-cg', max_iter=1000)
+#clf = LogisticRegression(solver='newton-cg', max_iter=1000)
+clf = LogisticRegression()
 
 # Evaluate classifier without feature scaling
 clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
@@ -177,8 +240,8 @@ import autosklearn.classification
 #clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
 #                                                       ml_memory_limit=4096, n_jobs=12,  resampling_strategy='cv',
 #                                                       resampling_strategy_arguments={'folds': 5},)
-clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=240, per_run_time_limit=60, 
-                                                       ml_memory_limit=4096, n_jobs=24)
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
+                                                       ml_memory_limit=32768, n_jobs=24)
 clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
 
 # Then train the ensemble on the whole training dataset
