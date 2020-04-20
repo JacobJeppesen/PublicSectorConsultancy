@@ -381,7 +381,7 @@ def plot_confusion_matrix(cm, classes):
     plt.xlabel('Predicted label')
     plt.tight_layout(w_pad=8)
     
-def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False):
+def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_confusion_matrix=False, auto_sklearn_crossvalidation=False):
     """
     This function evaluates a classifier. It measures training and prediction time, and 
     prints performance metrics and a confustion matrix. The returned classifier and 
@@ -402,7 +402,17 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     t0 = time()
 
     # Fit the classifier on the training features and labels
-    clf.fit(X_train, y_train)
+    if not auto_sklearn_crossvalidation:
+        clf.fit(X_train, y_train)
+    else:
+        # From https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html
+        # fit() changes the data in place, but refit needs the original data. We
+        # therefore copy the data. In practice, one should reload the data
+        clf.fit(X_train.copy(), y_train.copy())
+        # During fit(), models are fit on individual cross-validation folds. To use
+        # all available data, we call refit() which trains all models in the
+        # final ensemble on the whole dataset.
+        clf.refit(X_train.copy(), y_train.copy()) 
     
     # Calculate and print training time
     print("Training time:", round(time()-t0, 4), "s")
@@ -428,8 +438,9 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     print("\n", report)
     
     # Plot confusion matrices
-    cnf_matrix = confusion_matrix(y_test, predictions)
-    plot_confusion_matrix(cnf_matrix, classes=class_names)
+    if plot_confusion_matrix:
+        cnf_matrix = confusion_matrix(y_test, predictions)
+        plot_confusion_matrix(cnf_matrix, classes=class_names)
     
     # Return the trained classifier to be used on future predictions
     return clf, scaler

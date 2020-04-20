@@ -25,6 +25,9 @@ xr.set_options(display_style="html")
 
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
+
+# Set seed for random generators
+RANDOM_SEED = 42
 ```
 
 ```python
@@ -46,49 +49,165 @@ df = df.dropna()
 ```
 
 ```python
-df_sklearn = get_sklearn_df(polygons_year=2019, 
-                            satellite_dates=slice('2018-01-01', '2019-12-31'), 
-                            fields='all', 
-                            satellite='all', 
-                            polarization='all',
-                            crop_type='all',
-                            netcdf_path=netcdf_path)
-    
-#df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-crop_codes = df_sklearn['afgkode'].unique()
-mapping_dict = {}
-class_names = [] 
+year = 2018
+for i in range(7, 24, 1):
+    month = (i % 12) + 1
+    if month == 1:
+        year += 1
+        
+    print(f"--------------------------------------------------------------------------------------------------")
+    print(f"Dataset from 2018-07-01 to {year}-{month:02}-01")
+    df_sklearn = get_sklearn_df(polygons_year=2019, 
+                                satellite_dates=slice('2018-07-01', f'{year}-{month:02}-01'), 
+                                fields='all', 
+                                satellite='all', 
+                                polarization='all',
+                                crop_type='all',
+                                netcdf_path=netcdf_path)
 
-for i, crop_code in enumerate(crop_codes):
-    mapping_dict[crop_code] = i
-    crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
-    class_names.append(crop_type)
+    df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+                                                         'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+    crop_codes = df_sklearn['afgkode'].unique()
+    mapping_dict = {}
+    class_names = [] 
 
-df_sklearn_remapped = df_sklearn.copy()
-df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
-#print(f"Crop types: {class_names}")
+    for i, crop_code in enumerate(crop_codes):
+        mapping_dict[crop_code] = i
+        crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
+        class_names.append(crop_type)
 
-array = df_sklearn_remapped.values
+    df_sklearn_remapped = df_sklearn.copy()
+    df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
+    #print(f"Crop types: {class_names}")
 
-# Define the independent variables as features.
-X = np.float32(array[:,3:])  # The features 
+    array = df_sklearn_remapped.values
 
-# Define the target (dependent) variable as labels.
-y = np.int8(array[:,1])  # The column 'afgkode'
+    # Define the independent variables as features.
+    X = np.float32(array[:,3:])  # The features 
 
-# Create a train/test split using 30% test size.
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+    # Define the target (dependent) variable as labels.
+    y = np.int8(array[:,1])  # The column 'afgkode'
 
-#print(f"Train samples:      {len(y_train)}")
-#print(f"Test samples:       {len(y_test)}")
-#print(f"Number of features: {len(X[0,:])}")
+    # Create a train/test split using 30% test size.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
 
-from sklearn.tree import DecisionTreeClassifier              
+    #print(f"Train samples:      {len(y_train)}")
+    #print(f"Test samples:       {len(y_test)}")
+    #print(f"Number of features: {len(X[0,:])}")
 
-# Instantiate and evaluate classifier
-clf = DecisionTreeClassifier()
-clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=False)
+    from sklearn.linear_model import LogisticRegression          
+
+    # Instantiate and evaluate classifier
+    clf = LogisticRegression(solver='lbfgs', multi_class='auto', max_iter=1000)
+    clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, plot_confusion_matrix=False)
+```
+
+```python
+year = 2018
+for i in range(7, 24, 1):
+    month = (i % 12) + 1
+    if month == 1:
+        year += 1
+        
+    print(f"--------------------------------------------------------------------------------------------------")
+    print(f"Dataset from 2018-07-01 to {year}-{month:02}-01")
+    df_sklearn = get_sklearn_df(polygons_year=2019, 
+                                satellite_dates=slice('2018-07-01', f'{year}-{month:02}-01'), 
+                                fields='all', 
+                                satellite='all', 
+                                polarization='all',
+                                crop_type='all',
+                                netcdf_path=netcdf_path)
+
+    df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+                                                         'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+    crop_codes = df_sklearn['afgkode'].unique()
+    mapping_dict = {}
+    class_names = [] 
+
+    for i, crop_code in enumerate(crop_codes):
+        mapping_dict[crop_code] = i
+        crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
+        class_names.append(crop_type)
+
+    df_sklearn_remapped = df_sklearn.copy()
+    df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
+    #print(f"Crop types: {class_names}")
+
+    array = df_sklearn_remapped.values
+
+    # Define the independent variables as features.
+    X = np.float32(array[:,3:])  # The features 
+
+    # Define the target (dependent) variable as labels.
+    y = np.int8(array[:,1])  # The column 'afgkode'
+
+    # Create a train/test split using 30% test size.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+
+    #print(f"Train samples:      {len(y_train)}")
+    #print(f"Test samples:       {len(y_test)}")
+    #print(f"Number of features: {len(X[0,:])}")
+
+    from sklearn.linear_model import LogisticRegressionCV          
+
+    # Instantiate and evaluate classifier
+    clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=10, random_state=RANDOM_SEED, max_iter=1000)
+    clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, plot_confusion_matrix=False)
+```
+
+```python
+year = 2018
+for i in range(7, 24, 1):
+    month = (i % 12) + 1
+    if month == 1:
+        year += 1
+        
+    print(f"--------------------------------------------------------------------------------------------------")
+    print(f"Dataset from 2018-07-01 to {year}-{month:02}-01")
+    df_sklearn = get_sklearn_df(polygons_year=2019, 
+                                satellite_dates=slice('2018-07-01', f'{year}-{month:02}-01'), 
+                                fields='all', 
+                                satellite='all', 
+                                polarization='all',
+                                crop_type='all',
+                                netcdf_path=netcdf_path)
+
+    df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+                                                         'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+    crop_codes = df_sklearn['afgkode'].unique()
+    mapping_dict = {}
+    class_names = [] 
+
+    for i, crop_code in enumerate(crop_codes):
+        mapping_dict[crop_code] = i
+        crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
+        class_names.append(crop_type)
+
+    df_sklearn_remapped = df_sklearn.copy()
+    df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
+    #print(f"Crop types: {class_names}")
+
+    array = df_sklearn_remapped.values
+
+    # Define the independent variables as features.
+    X = np.float32(array[:,3:])  # The features 
+
+    # Define the target (dependent) variable as labels.
+    y = np.int8(array[:,1])  # The column 'afgkode'
+
+    # Create a train/test split using 30% test size.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+
+    #print(f"Train samples:      {len(y_train)}")
+    #print(f"Test samples:       {len(y_test)}")
+    #print(f"Number of features: {len(X[0,:])}")
+
+    from sklearn.linear_model import LogisticRegressionCV          
+
+    # Instantiate and evaluate classifier
+    clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=10, random_state=RANDOM_SEED, max_iter=1000, class_weight='balanced')
+    clf_trained = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, plot_confusion_matrix=False)
 ```
 
 ```python

@@ -50,6 +50,8 @@ mapping_dict_crop_types = {
     'Skovdrift, alm.': 'Forest',
     'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
 }
+
+RANDOM_SEED = 42
 ```
 
 ```python
@@ -135,36 +137,6 @@ print(f"Crop types: {class_names}")
 ```
 
 ```python
-crop_codes = df_sklearn['afgkode'].unique()
-mapping_dict = {}
-class_names = [] 
-
-for i, crop_code in enumerate(crop_codes):
-    mapping_dict[crop_code] = i
-    crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
-    class_names.append(crop_type)
-
-df_sklearn_remapped = df_sklearn.copy()
-df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
-print(f"Crop types: {class_names}")
-```
-
-```python
-crop_types = df_sklearn['afgroede'].unique()
-mapping_dict = {}
-class_names = [] 
-
-for i, crop_type in enumerate(crop_types):
-    mapping_dict[crop_code] = i
-    crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
-    class_names.append(crop_type)
-
-df_sklearn_remapped = df_sklearn.copy()
-df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
-print(f"Crop types: {class_names}")
-```
-
-```python
 array = df_sklearn_remapped.values
 
 # Define the independent variables as features.
@@ -176,7 +148,7 @@ y = np.int8(array[:,4])  # The column 'afgkode'
 
 ```python
 # Create a train/test split using 30% test size.
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
 
 print(f"Train samples:      {len(y_train)}")
 print(f"Test samples:       {len(y_test)}")
@@ -243,6 +215,21 @@ import autosklearn.classification
 clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
                                                        ml_memory_limit=32768, n_jobs=24)
 clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+
+# Then train the ensemble on the whole training dataset
+# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
+```
+
+```python
+import autosklearn.classification
+
+# Instantiate and evaluate classifier
+clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
+                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
+                                                       resampling_strategy_arguments={'folds': 10},)
+#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
+#                                                       ml_memory_limit=32768, n_jobs=24)
+clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
 
 # Then train the ensemble on the whole training dataset
 # https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
