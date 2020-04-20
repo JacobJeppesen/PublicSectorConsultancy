@@ -381,7 +381,7 @@ def plot_confusion_matrix(cm, classes):
     plt.xlabel('Predicted label')
     plt.tight_layout(w_pad=8)
     
-def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_confusion_matrix=False, auto_sklearn_crossvalidation=False):
+def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_confusion_matrix=False, auto_sklearn_crossvalidation=False, print_classification_report=True):
     """
     This function evaluates a classifier. It measures training and prediction time, and 
     prints performance metrics and a confustion matrix. The returned classifier and 
@@ -429,13 +429,14 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     # Evaluate the model
     train_accuracy = clf.score(X_train, y_train)
     test_accuracy = clf.score(X_test, y_test)
-    report = classification_report(y_test, predictions, target_names=class_names)
+    results_report = classification_report(y_test, predictions, target_names=class_names)
 
     # Print the reports
     print("\nReport:\n")
     print("Train accuracy: {}".format(round(train_accuracy, 4)))
     print("Test accuracy: {}".format(round(test_accuracy, 4)))
-    print("\n", report)
+    if print_classification_report:
+        print("\n", results_report)
     
     # Plot confusion matrices
     if plot_confusion_matrix:
@@ -443,4 +444,4 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
         plot_confusion_matrix(cnf_matrix, classes=class_names)
     
     # Return the trained classifier to be used on future predictions
-    return clf, scaler
+    return clf, scaler, test_accuracy, results_report

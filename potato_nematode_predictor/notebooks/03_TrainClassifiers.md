@@ -51,6 +51,7 @@ mapping_dict_crop_types = {
     'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
 }
 
+# Set seed for random generators
 RANDOM_SEED = 42
 ```
 
