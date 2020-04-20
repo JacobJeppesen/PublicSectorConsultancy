@@ -271,15 +271,12 @@ clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, clas
 
 ```python
 # Take a look at https://towardsdatascience.com/svm-hyper-parameter-tuning-using-gridsearchcv-49c0bc55ce29
-
-# Note: Parse the grid as a clf - it should work as long as refit=True). Remember to set n_jobs.
+from sklearn.svm import SVC   
 from sklearn.model_selection import GridSearchCV
-param_grid = {'C': [0.1,1, 10, 100], 'gamma': [1,0.1,0.01,0.001],'kernel': ['rbf', 'poly', 'sigmoid']}
-grid = GridSearchCV(SVC(),param_grid,refit=True,verbose=2)
-grid.fit(X_train,y_train)
-grid_predictions = grid.predict(X_test)
-print(confusion_matrix(y_test,grid_predictions))
-print(classification_report(y_test,grid_predictions))
+param_grid = {'C': [0.01, 0.1, 1, 10, 100, 1000], 'gamma': [0.00001, 0.0001, 0.001, 0.01, 0.1, 1], 'kernel': ['rbf']}
+#grid = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
+grid = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
+grid_trained, _ = evaluate_classifier(grid, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 ```
 
 ```python
