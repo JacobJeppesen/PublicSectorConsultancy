@@ -429,13 +429,14 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
     # Evaluate the model
     train_accuracy = clf.score(X_train, y_train)
     test_accuracy = clf.score(X_test, y_test)
-    results_report = classification_report(y_test, predictions, target_names=class_names)
+    results_report_dict = classification_report(y_test, predictions, target_names=class_names, output_dict=True)
 
     # Print the reports
     print("\nReport:\n")
     print("Train accuracy: {}".format(round(train_accuracy, 4)))
     print("Test accuracy: {}".format(round(test_accuracy, 4)))
     if print_classification_report:
+        results_report = classification_report(y_test, predictions, target_names=class_names)
         print("\n", results_report)
     
     # Plot confusion matrices
@@ -444,4 +445,4 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
         plot_confusion_matrix(cnf_matrix, classes=class_names)
     
     # Return the trained classifier to be used on future predictions
-    return clf, scaler, test_accuracy, results_report
+    return clf, scaler, test_accuracy, results_report_dict

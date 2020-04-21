@@ -37,10 +37,38 @@ xr.set_options(display_style="html")
 
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
+
+# Mapping dict
+mapping_dict_crop_types = {
+    'Kartofler, stivelses-': 'Potato',
+    'Kartofler, lægge- (egen opformering)': 'Potato',
+    'Kartofler, andre': 'Potato',
+    'Kartofler, spise-': 'Potato',
+    'Kartofler, lægge- (certificerede)': 'Potato',
+    'Vårbyg': 'Barley',
+    'Vinterbyg': 'Barley',
+    'Grønkorn af vårbyg': 'Barley',
+    'Vårbyg, helsæd': 'Barley',
+    'Vinterhvede': 'Wheat',
+    'Vårhvede': 'Wheat',
+    'Vinterhybridrug': 'Rye',
+    'Vårhavre': 'Oat',
+    'Silomajs': 'Maize',
+    'Majs til modenhed': 'Maize',
+    'Vinterraps': 'Rapeseed',
+    'Sukkerroer til fabrik': 'Sugarbeet',
+    'Permanent græs, normalt udbytte': 'Grass',
+    'Skovdrift, alm.': 'Forest',
+    'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
+}
+
+# Set seed for random generators
+RANDOM_SEED = 42
 ```
 
 ```python
-netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc') ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
+netcdf_path = (PROJ_PATH / 'data' / 'processed' / 'FieldPolygons2019_stats').with_suffix('.nc') 
+ds = xr.open_dataset(netcdf_path, engine="h5netcdf")
 ds  # Remember to close the dataset before the netcdf file can be rewritten in cells above
 ```
 
@@ -58,49 +86,54 @@ df = df.dropna()
 
 ```python
 df_sklearn = get_sklearn_df(polygons_year=2019, 
-                            satellite_dates=slice('2019-01-01', '2019-12-31'), 
+                            satellite_dates=slice('2018-01-01', '2019-12-31'), 
                             fields='all', 
                             satellite='S1B', 
                             polarization='all',
                             crop_type='all',
                             netcdf_path=netcdf_path)
     
-#df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-#                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps'])]
-crop_codes = df_sklearn['afgkode'].unique()
+df_sklearn_remapped = df_sklearn.copy()
+df_sklearn_remapped.insert(3, 'Crop type', '')
+df_sklearn_remapped.insert(4, 'Label ID', 0)
 mapping_dict = {}
 class_names = [] 
+i = 0
+for key, value in mapping_dict_crop_types.items():
+    df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
+    if value not in class_names:
+        class_names.append(value)
+        mapping_dict[value] = i
+        i += 1
 
-for i, crop_code in enumerate(crop_codes):
-    mapping_dict[crop_code] = i
-    crop_type = df_sklearn[df_sklearn['afgkode'] == crop_code].head(1)['afgroede'].values[0]
-    class_names.append(crop_type)
-
-df_sklearn_remapped = df_sklearn.copy()
-df_sklearn_remapped['afgkode'] = df_sklearn_remapped['afgkode'].map(mapping_dict)
+for key, value in mapping_dict.items():
+    df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
 #print(f"Crop types: {class_names}")
 
+# Get values as numpy array
 array = df_sklearn_remapped.values
 
 # Define the independent variables as features.
-X = np.float32(array[:,3:])  # The features 
+X = np.float32(array[:,5:])  # The features 
 
 # Define the target (dependent) variable as labels.
-y = np.int8(array[:,1])  # The column 'afgkode'
+y = np.int8(array[:,4])  # The column 'afgkode'
 
 # Create a train/test split using 30% test size.
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
 
-#print(f"Train samples:      {len(y_train)}")
-#print(f"Test samples:       {len(y_test)}")
-#print(f"Number of features: {len(X[0,:])}")
-
+# Instantiate and evaluate classifier
 from sklearn.linear_model import LogisticRegression          
+clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
+clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
+                                                                    feature_scale=True, plot_confusion_matrix=False,
+                                                                    print_classification_report=True)
+```
 
-# Instantiate classifier.
-clf = LogisticRegression(solver='newton-cg', max_iter=100)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
+```python
+print("IMPORTANT!!!! REMEMBER TO CORRECT THE 'accuracy' ROW MANUALLY - IT IS RUINED WHEN THE DICT IS CONVERTED TO DATAFRAME")
+df_results = pd.DataFrame(results_report).transpose()
+print(df_results.round(2).astype({'support': 'int32'}).to_latex(index=True))  
 ```
 
 ```python
@@ -200,7 +233,16 @@ df_bias_values
 ```
 
 ```python
-data = df_explanation[df_explanation['polarization'] == 'VV']
+data = df_explanation[df_explanation['polarization'] == 'VH']
+#data = data.loc[data['target'].isin(['Forest', 'Maize', 'Rapeseed'])]
+plt.figure(figsize=(24, 8))
+plt.xticks(rotation=90, horizontalalignment='center')
+ax = sns.lineplot(x='feature', y='weight', hue='target', data=data, ci='sd')
+```
+
+```python
+data = df_explanation[df_explanation['polarization'] == 'VH']
+data = data.loc[data['target'].isin(['Barley', 'Wheat', 'Forest'])]
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='feature', y='weight', hue='target', data=data, ci='sd')

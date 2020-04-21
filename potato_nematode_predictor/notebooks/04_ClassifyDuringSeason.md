@@ -771,5 +771,118 @@ for tick in ax.get_xticklabels():
 ```
 
 ```python
+# Dicts to hold results
+test_acc_svm_rbf_cv = {'2018-07-01': 0}
+classification_reports_svm_rbf_cv = {}
+trained_classifiers_svm_rbf_cv = {}
+
+year = 2018
+for i in range(7, 24, 1):
+    month = (i % 12) + 1
+    if month == 1:
+        year += 1
+        
+    end_date = f'{year}-{month:02}-01'
+        
+    print(f"--------------------------------------------------------------------------------------------------")
+    print(f"Dataset from 2018-07-01 to {end_date}")
+    df_sklearn = get_sklearn_df(polygons_year=2019, 
+                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
+                                fields='all', 
+                                satellite='all', 
+                                polarization='all',
+                                crop_type='all',
+                                netcdf_path=netcdf_path)
+
+    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
+    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
+    
+    df_sklearn_remapped = df_sklearn.copy()
+    df_sklearn_remapped.insert(3, 'Crop type', '')
+    df_sklearn_remapped.insert(4, 'Label ID', 0)
+    mapping_dict = {}
+    class_names = [] 
+    i = 0
+    for key, value in mapping_dict_crop_types.items():
+        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
+        if value not in class_names:
+            class_names.append(value)
+            mapping_dict[value] = i
+            i += 1
+
+    for key, value in mapping_dict.items():
+        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
+    #print(f"Crop types: {class_names}")
+
+    # Get values as numpy array
+    array = df_sklearn_remapped.values
+
+    # Define the independent variables as features.
+    X = np.float32(array[:,5:])  # The features 
+
+    # Define the target (dependent) variable as labels.
+    y = np.int8(array[:,4])  # The column 'afgkode'
+
+    # Create a train/test split using 30% test size.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
+
+    # Instantiate and evaluate classifier
+    from sklearn.svm import SVC   
+    from sklearn.model_selection import GridSearchCV
+
+    param_grid = {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.00001, 0.0001, 0.001, 0.01, 0.1], 'kernel': ['rbf']}
+    clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
+    #clf = SVC(kernel='rbf')
+    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
+                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        print_classification_report=False)
+    
+    print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
+    
+    test_acc_svm_rbf_cv[end_date] = accuracy_test
+    classification_reports_svm_rbf_cv[end_date] = results_report 
+    trained_classifiers_svm_rbf_cv[end_date] = clf_trained 
+    
+    # Idea: Maybe make a utils folder, with a plotting module, evaluation module etc.. The below here should 
+    #       then be put in the plotting module. 
+    mean_test_scores = clf_trained.cv_results_['mean_test_score']
+    mean_fit_times = clf_trained.cv_results_['mean_fit_time']
+    param_columns = list(clf_trained.cv_results_['params'][0].keys())
+    result_columns = ['mean_fit_time', 'mean_test_score']
+    num_fits = len(clf_trained.cv_results_['params'])
+
+    df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
+    for i, param_set in enumerate(grid_trained.cv_results_['params']):
+        for param, value in param_set.items():
+            df_cv_results.loc[i, param] = value 
+        df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
+        df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
+
+    df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
+    plt.figure(figsize=(10,8))
+    ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
+
+    df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
+    plt.figure(figsize=(10,8))
+    ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
+```
+
+```python
+x = list(test_acc_svm_rbf_cv.keys())
+y = list(test_acc_svm_rbf_cv.values())
+ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
+ax.set_ylabel('Test accuracy')
+ax.set_ylim(0, 1)
+for tick in ax.get_xticklabels():
+    tick.set_rotation(90)
+```
+
+```python
+#for date, report in classification_reports_logistic_regression.items():
+#    print(date)
+#    print(report)
+```
+
+```python
 
 ```
