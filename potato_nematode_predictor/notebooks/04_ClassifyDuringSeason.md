@@ -5,6 +5,7 @@ import xarray as xr
 import seaborn as sns
 
 from pathlib import Path
+from matplotlib import pyplot as plt
 from tqdm.autonotebook import tqdm
 from sklearn.model_selection import train_test_split         # Split data into train and test set
 
@@ -48,6 +49,24 @@ mapping_dict_crop_types = {
     'Permanent græs, normalt udbytte': 'Grass',
     'Skovdrift, alm.': 'Forest',
     'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
+}
+mapping_dict_crop_types = {
+    'Kartofler, stivelses-': 'Potato',
+    'Kartofler, lægge- (egen opformering)': 'Potato',
+    'Kartofler, andre': 'Potato',
+    'Kartofler, spise-': 'Potato',
+    'Kartofler, lægge- (certificerede)': 'Potato',
+    'Vårbyg': 'Spring barley',
+    'Vinterbyg': 'Winter barley',
+    'Vårhvede': 'Spring wheat',
+    'Vinterhvede': 'Winter wheat',
+    'Vinterrug': 'Winter rye',
+    'Vårhavre': 'Spring oat',
+    'Silomajs': 'Maize',
+    'Vinterraps': 'Rapeseed',
+    'Permanent græs, normalt udbytte': 'Permanent grass',
+    'Græs uden kløvergræs (omdrift)': 'Grass silage',
+    'Skovdrift, alm.': 'Forest'
 }
 
 # Set seed for random generators
@@ -830,8 +849,8 @@ for i in range(7, 24, 1):
     from sklearn.svm import SVC   
     from sklearn.model_selection import GridSearchCV
 
-    param_grid = {'C': [1, 10, 100, 1000, 10000], 'gamma': [0.00001, 0.0001, 0.001, 0.01, 0.1], 'kernel': ['rbf']}
-    clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
+    param_grid = {'C': [1, 10, 100, 1000], 'gamma': [0.00001, 0.0001, 0.001, 0.01], 'kernel': ['rbf']}
+    clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=12)
     #clf = SVC(kernel='rbf')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
                                                                         feature_scale=True, plot_confusion_matrix=False,
@@ -852,7 +871,7 @@ for i in range(7, 24, 1):
     num_fits = len(clf_trained.cv_results_['params'])
 
     df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-    for i, param_set in enumerate(grid_trained.cv_results_['params']):
+    for i, param_set in enumerate(clf_trained.cv_results_['params']):
         for param, value in param_set.items():
             df_cv_results.loc[i, param] = value 
         df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
@@ -865,6 +884,29 @@ for i in range(7, 24, 1):
     df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
     plt.figure(figsize=(10,8))
     ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
+```
+
+```python
+mean_test_scores = clf_trained.cv_results_['mean_test_score']
+mean_fit_times = clf_trained.cv_results_['mean_fit_time']
+param_columns = list(clf_trained.cv_results_['params'][0].keys())
+result_columns = ['mean_fit_time', 'mean_test_score']
+num_fits = len(clf_trained.cv_results_['params'])
+
+df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
+for i, param_set in enumerate(clf_trained.cv_results_['params']):
+    for param, value in param_set.items():
+        df_cv_results.loc[i, param] = value 
+    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
+    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
+
+df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
+plt.figure(figsize=(10,8))
+ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
+
+df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
+plt.figure(figsize=(10,8))
+ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
 ```
 
 ```python

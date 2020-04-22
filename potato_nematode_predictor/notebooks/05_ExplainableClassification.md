@@ -242,7 +242,7 @@ ax = sns.lineplot(x='feature', y='weight', hue='target', data=data, ci='sd')
 
 ```python
 data = df_explanation[df_explanation['polarization'] == 'VH']
-data = data.loc[data['target'].isin(['Barley', 'Wheat', 'Forest'])]
+data = data.loc[data['target'].isin(['Barley', 'Wheat', 'Forest', 'Potato'])]
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='feature', y='weight', hue='target', data=data, ci='sd')
