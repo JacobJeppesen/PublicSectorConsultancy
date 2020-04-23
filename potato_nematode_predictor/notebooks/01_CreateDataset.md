@@ -36,9 +36,9 @@ PROJ_PATH = Path.cwd().parent
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
-CROP_TYPES = ['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 'Vinterbyg', 'Vårhavre', 'Vinterhybridrug', 'Vårhvede',
-              'Grønkorn af vårbyg', 'Vårbyg, helsæd', 'Majs til modenhed', 'Skovdrift, alm.', 'Sukkerroer til fabrik',
-              'Juletræer og pyntegrønt på landbrugsjord', 'Permanent græs, normalt udbytte']  
+CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 'Vårhavre', 'Silomajs', 'Vinterraps', 
+              'Permanent græs, normalt udbytte', 'Græs uden kløvergræs (omdrift)', 'Skovdrift, alm.']  
+
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False

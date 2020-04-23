@@ -35,21 +35,17 @@ mapping_dict_crop_types = {
     'Kartofler, andre': 'Potato',
     'Kartofler, spise-': 'Potato',
     'Kartofler, lægge- (certificerede)': 'Potato',
-    'Vårbyg': 'Barley',
-    'Vinterbyg': 'Barley',
-    'Grønkorn af vårbyg': 'Barley',
-    'Vårbyg, helsæd': 'Barley',
-    'Vinterhvede': 'Wheat',
-    'Vårhvede': 'Wheat',
-    'Vinterhybridrug': 'Rye',
-    'Vårhavre': 'Oat',
+    'Vårbyg': 'Spring barley',
+    'Vinterbyg': 'Winter barley',
+    'Vårhvede': 'Spring wheat',
+    'Vinterhvede': 'Winter wheat',
+    'Vinterrug': 'Winter rye',
+    'Vårhavre': 'Spring oat',
     'Silomajs': 'Maize',
-    'Majs til modenhed': 'Maize',
     'Vinterraps': 'Rapeseed',
-    'Sukkerroer til fabrik': 'Sugarbeet',
-    'Permanent græs, normalt udbytte': 'Grass',
-    'Skovdrift, alm.': 'Forest',
-    'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
+    'Permanent græs, normalt udbytte': 'Permanent grass',
+    'Græs uden kløvergræs (omdrift)': 'Grass silage',
+    'Skovdrift, alm.': 'Forest'
 }
 
 # Set seed for random generators
