@@ -129,7 +129,7 @@ for i in range(7, 24, 1):
     from sklearn.linear_model import LogisticRegression          
     clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_logistic_regression[end_date] = accuracy_test
@@ -213,7 +213,7 @@ for i in range(7, 24, 1):
     from sklearn.linear_model import LogisticRegression          
     clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000, class_weight='balanced')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_logistic_regression_balanced[end_date] = accuracy_test
@@ -299,7 +299,7 @@ for i in range(7, 24, 1):
     # Instantiate and evaluate classifier
     clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=5, n_jobs=32, random_state=RANDOM_SEED, max_iter=1000)
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_logistic_regression_cv[end_date] = accuracy_test
@@ -387,7 +387,7 @@ for i in range(7, 24, 1):
     clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=5, n_jobs=32, random_state=RANDOM_SEED, max_iter=1000, 
                                class_weight='balanced')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_logistic_regression_cv_balanced[end_date] = accuracy_test
@@ -476,7 +476,7 @@ for i in range(7, 24, 1):
     #clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
     clf = SVC(kernel='linear')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_svm_linear[end_date] = accuracy_test
@@ -565,7 +565,7 @@ for i in range(7, 24, 1):
     #clf = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
     clf = SVC(kernel='linear', class_weight='balanced')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_svm_linear_balanced[end_date] = accuracy_test
@@ -654,7 +654,7 @@ for i in range(7, 24, 1):
     #clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
     clf = SVC(kernel='rbf')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_svm_rbf[end_date] = accuracy_test
@@ -743,7 +743,7 @@ for i in range(7, 24, 1):
     #clf = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
     clf = SVC(kernel='rbf', class_weight='balanced')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     test_acc_svm_rbf_balanced[end_date] = accuracy_test
@@ -827,11 +827,11 @@ for i in range(7, 24, 1):
     from sklearn.svm import SVC   
     from sklearn.model_selection import GridSearchCV
 
-    param_grid = {'C': [1, 10, 100, 1000], 'gamma': [0.00001, 0.0001, 0.001, 0.01], 'kernel': ['rbf']}
+    param_grid = {'C': [1, 3, 5, 10, 30, 50, 100, 300, 500, 1000], 'kernel': ['rbf']}
     clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=12)
     #clf = SVC(kernel='rbf')
     clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_confusion_matrix=False,
+                                                                        feature_scale=True, plot_conf_matrix=True,
                                                                         print_classification_report=False)
     
     print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
@@ -842,49 +842,26 @@ for i in range(7, 24, 1):
     
     # Idea: Maybe make a utils folder, with a plotting module, evaluation module etc.. The below here should 
     #       then be put in the plotting module. 
-    mean_test_scores = clf_trained.cv_results_['mean_test_score']
-    mean_fit_times = clf_trained.cv_results_['mean_fit_time']
-    param_columns = list(clf_trained.cv_results_['params'][0].keys())
-    result_columns = ['mean_fit_time', 'mean_test_score']
-    num_fits = len(clf_trained.cv_results_['params'])
+    #mean_test_scores = clf_trained.cv_results_['mean_test_score']
+    #mean_fit_times = clf_trained.cv_results_['mean_fit_time']
+    #param_columns = list(clf_trained.cv_results_['params'][0].keys())
+    #result_columns = ['mean_fit_time', 'mean_test_score']
+    #num_fits = len(clf_trained.cv_results_['params'])
 
-    df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-    for i, param_set in enumerate(clf_trained.cv_results_['params']):
-        for param, value in param_set.items():
-            df_cv_results.loc[i, param] = value 
-        df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
-        df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
+    #df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
+    #for i, param_set in enumerate(clf_trained.cv_results_['params']):
+    #    for param, value in param_set.items():
+    #        df_cv_results.loc[i, param] = value 
+    #    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
+    #    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
 
-    df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
-    plt.figure(figsize=(10,8))
-    ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
+    #df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
+    #plt.figure(figsize=(10,8))
+    #ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
 
-    df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
-    plt.figure(figsize=(10,8))
-    ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
-```
-
-```python
-mean_test_scores = clf_trained.cv_results_['mean_test_score']
-mean_fit_times = clf_trained.cv_results_['mean_fit_time']
-param_columns = list(clf_trained.cv_results_['params'][0].keys())
-result_columns = ['mean_fit_time', 'mean_test_score']
-num_fits = len(clf_trained.cv_results_['params'])
-
-df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-for i, param_set in enumerate(clf_trained.cv_results_['params']):
-    for param, value in param_set.items():
-        df_cv_results.loc[i, param] = value 
-    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
-    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
-
-df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
-plt.figure(figsize=(10,8))
-ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
-
-df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
-plt.figure(figsize=(10,8))
-ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
+    #df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
+    #plt.figure(figsize=(10,8))
+    #ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
 ```
 
 ```python
@@ -895,6 +872,39 @@ ax.set_ylabel('Test accuracy')
 ax.set_ylim(0, 1)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
+```
+
+```python
+#mean_test_scores = clf_trained.cv_results_['mean_test_score']
+#mean_fit_times = clf_trained.cv_results_['mean_fit_time']
+#param_columns = list(clf_trained.cv_results_['params'][0].keys())
+#result_columns = ['mean_fit_time', 'mean_test_score']
+#num_fits = len(clf_trained.cv_results_['params'])
+
+#df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
+#for i, param_set in enumerate(clf_trained.cv_results_['params']):
+#    for param, value in param_set.items():
+#        df_cv_results.loc[i, param] = value 
+#    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
+#    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
+
+#df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
+#plt.figure(figsize=(10,8))
+#ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
+
+#df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
+#plt.figure(figsize=(10,8))
+#ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
+```
+
+```python
+#x = list(test_acc_svm_rbf_cv.keys())
+#y = list(test_acc_svm_rbf_cv.values())
+#ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
+#ax.set_ylabel('Test accuracy')
+#ax.set_ylim(0, 1)
+#for tick in ax.get_xticklabels():
+#    tick.set_rotation(90)
 ```
 
 ```python

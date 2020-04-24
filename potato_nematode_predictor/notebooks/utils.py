@@ -381,7 +381,7 @@ def plot_confusion_matrix(cm, classes):
     plt.xlabel('Predicted label')
     plt.tight_layout(w_pad=8)
     
-def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_confusion_matrix=False, auto_sklearn_crossvalidation=False, print_classification_report=True):
+def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_conf_matrix=True, auto_sklearn_crossvalidation=False, print_classification_report=True):
     """
     This function evaluates a classifier. It measures training and prediction time, and 
     prints performance metrics and a confustion matrix. The returned classifier and 
@@ -440,7 +440,7 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
         print("\n", results_report)
     
     # Plot confusion matrices
-    if plot_confusion_matrix:
+    if plot_conf_matrix:
         cnf_matrix = confusion_matrix(y_test, predictions)
         plot_confusion_matrix(cnf_matrix, classes=class_names)
     

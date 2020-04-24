@@ -74,7 +74,7 @@ df = df.dropna()
 # Create the df format to be used by scikit-learn
 for i, polarization in enumerate(['VV', 'VH', 'VV-VH']):
     df_polarization = get_df(polygons_year=2019, 
-                             satellite_dates=slice('2019-01-01', '2019-10-01'), 
+                             satellite_dates=slice('2018-01-01', '2019-12-31'), 
                              fields='all', 
                              satellite='all', 
                              polarization=polarization,
@@ -158,7 +158,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 # Instantiate and evaluate classifier
 clf = DecisionTreeClassifier()
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
 ```
 
 ```python
@@ -169,7 +169,7 @@ from sklearn.linear_model import LogisticRegression
 clf = LogisticRegression()
 
 # Evaluate classifier without feature scaling
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 ```
 
 ```python
@@ -177,7 +177,7 @@ from sklearn.neural_network import MLPClassifier
 
 # Instantiate and evaluate classifier
 clf = MLPClassifier(solver='lbfgs', alpha=10, hidden_layer_sizes=(25, 25), max_iter=1000)  # See what happens when you change random state
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 ```
 
 ```python
@@ -185,13 +185,13 @@ from sklearn.svm import SVC
 
 # Instantiate and evaluate classifier
 clf = SVC(kernel='linear')
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
 ```
 
 ```python
 # Instantiate and evaluate classifier
 clf = SVC(kernel='rbf')
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
 ```
 
 ```python
@@ -207,61 +207,12 @@ except:  # Else install auto-sklearn (https://automl.github.io/auto-sklearn/mast
 import autosklearn.classification
 
 # Instantiate and evaluate classifier
-#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-#                                                       ml_memory_limit=4096, n_jobs=12,  resampling_strategy='cv',
-#                                                       resampling_strategy_arguments={'folds': 5},)
-clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-                                                       ml_memory_limit=32768, n_jobs=24)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
-
-# Then train the ensemble on the whole training dataset
-# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
-```
-
-```python
-import autosklearn.classification
-
-# Instantiate and evaluate classifier
-clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
-                                                       resampling_strategy_arguments={'folds': 10},)
-#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-#                                                       ml_memory_limit=32768, n_jobs=24)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
-
-# Then train the ensemble on the whole training dataset
-# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
-```
-
-```python
-import autosklearn.classification
-
-# Instantiate and evaluate classifier
-clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=7200, per_run_time_limit=360, 
-                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
-                                                       resampling_strategy_arguments={'folds': 5},)
-#clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
-#                                                       ml_memory_limit=32768, n_jobs=24)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
-
-# Then train the ensemble on the whole training dataset
-# https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
-```
-
-```python
-#clf_trained.show_models()
-```
-
-```python
-import autosklearn.classification
-
-# Instantiate and evaluate classifier
 clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=7200, per_run_time_limit=720, 
-                                                       ml_memory_limit=32768, n_jobs=24,  resampling_strategy='cv',
+                                                       ml_memory_limit=32768, n_jobs=12,  resampling_strategy='cv',
                                                        resampling_strategy_arguments={'folds': 5},)
 #clf = autosklearn.classification.AutoSklearnClassifier(time_left_for_this_task=3600, per_run_time_limit=360, 
 #                                                       ml_memory_limit=32768, n_jobs=24)
-clf_trained, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, auto_sklearn_crossvalidation=True)
 
 # Then train the ensemble on the whole training dataset
 # https://automl.github.io/auto-sklearn/master/examples/example_crossvalidation.html#sphx-glr-examples-example-crossvalidation-py
@@ -273,7 +224,7 @@ from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
 param_grid = {'C': [0.01, 0.1, 1, 10, 100, 1000, 10000], 'gamma': [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10], 'kernel': ['rbf']}
 #grid = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
-grid = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
+grid = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=20, n_jobs=12)
 grid_trained, _, _, _ = evaluate_classifier(grid, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 
 print(f"The best parameters are {grid_trained.best_params_} with a score of {grid_trained.best_score_:2f}")
