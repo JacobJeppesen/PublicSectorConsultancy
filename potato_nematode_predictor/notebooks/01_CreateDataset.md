@@ -37,7 +37,7 @@ FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
 CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 'Vårhavre', 'Silomajs', 'Vinterraps', 
-              'Permanent græs, normalt udbytte', 'Græs uden kløvergræs (omdrift)', 'Skovdrift, alm.']  
+              'Permanent græs, normalt udbytte', 'Pil', 'Skovdrift, alm.']  
 
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
@@ -100,7 +100,7 @@ if True:  # Set it to True if you want to find the results
         df.columns = map(str.lower, df.columns)
 
         # Find most common crop types
-        n = 40 
+        n = 60 
         crop_types = df['afgroede'].value_counts()[:n].index.tolist()
         print("### Analyzing " + df_name + " ###")
         for crop_type in crop_types:
