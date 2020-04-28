@@ -44,7 +44,7 @@ mapping_dict_crop_types = {
     'Silomajs': 'Maize',
     'Vinterraps': 'Rapeseed',
     'Permanent græs, normalt udbytte': 'Permanent grass',
-    'Græs uden kløvergræs (omdrift)': 'Grass silage',
+    'Pil': 'Willow',
     'Skovdrift, alm.': 'Forest'
 }
 
@@ -191,7 +191,13 @@ clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test
 ```python
 # Instantiate and evaluate classifier
 clf = SVC(kernel='rbf')
-clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names,  feature_scale=True)
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
+```
+
+```python
+# Instantiate and evaluate classifier
+clf = SVC(kernel='rbf', class_weight='balanced')
+clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 ```
 
 ```python
@@ -222,12 +228,12 @@ clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test
 # Take a look at https://towardsdatascience.com/svm-hyper-parameter-tuning-using-gridsearchcv-49c0bc55ce29
 from sklearn.svm import SVC   
 from sklearn.model_selection import GridSearchCV
-#param_grid = {'C': [1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7], 
-#              'gamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], 
-#              'kernel': ['rbf']}
-param_grid = {'C': [1, 1e1, 1e2, 1e3], 
-              'gamma': [1e-4, 1e-3, 1e-2, 1e-1], 
+param_grid = {'C': [1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7], 
+              'gamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], 
               'kernel': ['rbf']}
+#param_grid = {'C': [1, 1e1, 1e2, 1e3], 
+#              'gamma': [1e-4, 1e-3, 1e-2, 1e-1], 
+#              'kernel': ['rbf']}
 #grid = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
 grid = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=20, n_jobs=16)
 grid_trained, _, _, _ = evaluate_classifier(grid, X_train, X_test, y_train, y_test, class_names, feature_scale=True)

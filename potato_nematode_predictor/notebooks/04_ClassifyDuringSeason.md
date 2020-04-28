@@ -43,7 +43,7 @@ mapping_dict_crop_types = {
     'Silomajs': 'Maize',
     'Vinterraps': 'Rapeseed',
     'Permanent græs, normalt udbytte': 'Permanent grass',
-    'Græs uden kløvergræs (omdrift)': 'Grass silage',
+    'Pil': 'Willow',
     'Skovdrift, alm.': 'Forest'
 }
 
