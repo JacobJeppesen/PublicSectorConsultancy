@@ -339,7 +339,8 @@ classifiers = [
     GaussianNB(),
     QuadraticDiscriminantAnalysis()]
 
-# TODO: Also calculate uncertainties - ie. use multiple random seeds
+# TODO: Also calculate uncertainties - ie. use multiple random seeds.
+#       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
 #       See following on how to format pandas dataframe to get the uncertainties into the df
 #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
 
