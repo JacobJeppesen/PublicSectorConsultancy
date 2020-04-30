@@ -45,22 +45,19 @@ mapping_dict_crop_types = {
     'Kartofler, andre': 'Potato',
     'Kartofler, spise-': 'Potato',
     'Kartofler, lægge- (certificerede)': 'Potato',
-    'Vårbyg': 'Barley',
-    'Vinterbyg': 'Barley',
-    'Grønkorn af vårbyg': 'Barley',
-    'Vårbyg, helsæd': 'Barley',
-    'Vinterhvede': 'Wheat',
-    'Vårhvede': 'Wheat',
-    'Vinterhybridrug': 'Rye',
-    'Vårhavre': 'Oat',
+    'Vårbyg': 'Spring barley',
+    'Vinterbyg': 'Winter barley',
+    'Vårhvede': 'Spring wheat',
+    'Vinterhvede': 'Winter wheat',
+    'Vinterrug': 'Winter rye',
+    'Vårhavre': 'Spring oat',
     'Silomajs': 'Maize',
-    'Majs til modenhed': 'Maize',
     'Vinterraps': 'Rapeseed',
-    'Sukkerroer til fabrik': 'Sugarbeet',
-    'Permanent græs, normalt udbytte': 'Grass',
-    'Skovdrift, alm.': 'Forest',
-    'Juletræer og pyntegrønt på landbrugsjord': 'Forest'
+    'Permanent græs, normalt udbytte': 'Permanent grass',
+    'Pil': 'Willow',
+    'Skovdrift, alm.': 'Forest'
 }
+
 
 # Set seed for random generators
 RANDOM_SEED = 42
@@ -126,14 +123,38 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 from sklearn.linear_model import LogisticRegression          
 clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
 clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                    feature_scale=True, plot_confusion_matrix=False,
+                                                                    feature_scale=True, plot_conf_matrix=False,
                                                                     print_classification_report=True)
 ```
 
 ```python
-print("IMPORTANT!!!! REMEMBER TO CORRECT THE 'accuracy' ROW MANUALLY - IT IS RUINED WHEN THE DICT IS CONVERTED TO DATAFRAME")
-df_results = pd.DataFrame(results_report).transpose()
-print(df_results.round(2).astype({'support': 'int32'}).to_latex(index=True))  
+# Get classfication report as pandas df
+df_results = pd.DataFrame(results_report).transpose()  
+
+# Round the values to 2 decimals
+df_results = df_results.round(2).astype({'support': 'int32'})  
+
+# Correct error when creating df (acc. is copied into 'precision')
+df_results.loc[df_results.index == 'accuracy', 'precision'] = ''  
+
+# Correct error when creating df (acc. is copied into 'recall')
+df_results.loc[df_results.index == 'accuracy', 'recall'] = ''  
+
+# Correct error when creating df (acc. is copied into 'recall')
+df_results.loc[df_results.index == 'accuracy', 'recall'] = ''  
+
+# The number of samples ('support') was incorrectly parsed in to dataframe
+df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
+
+# Print df in latex format (I normally add a /midrule above accuracy manually)
+print(df_results.to_latex(index=True))  
+```
+
+```python
+df_results.loc[df_results.index == 'accuracy', 'precision'] = ''
+df_results.loc[df_results.index == 'accuracy', 'recall'] = ''
+df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
+df_results
 ```
 
 ```python

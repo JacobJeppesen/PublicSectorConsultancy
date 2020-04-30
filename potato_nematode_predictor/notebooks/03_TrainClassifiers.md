@@ -146,7 +146,7 @@ y = np.int8(array[:,4])  # The column 'afgkode'
 
 ```python
 # Create a train/test split using 30% test size.
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, shuffle=True, random_state=RANDOM_SEED)
 
 print(f"Train samples:      {len(y_train)}")
 print(f"Test samples:       {len(y_test)}")
@@ -158,7 +158,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 # Instantiate and evaluate classifier
 clf = DecisionTreeClassifier()
-clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
+clf_trained, _, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False)
 ```
 
 ```python
@@ -228,15 +228,15 @@ clf_trained, _, _, _ = evaluate_classifier(clf, X_train, X_test, y_train, y_test
 # Take a look at https://towardsdatascience.com/svm-hyper-parameter-tuning-using-gridsearchcv-49c0bc55ce29
 from sklearn.svm import SVC   
 from sklearn.model_selection import GridSearchCV
-param_grid = {'C': [1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7], 
-              'gamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], 
-              'kernel': ['rbf']}
-#param_grid = {'C': [1, 1e1, 1e2, 1e3], 
-#              'gamma': [1e-4, 1e-3, 1e-2, 1e-1], 
+#param_grid = {'C': [1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7], 
+#              'gamma': [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1], 
 #              'kernel': ['rbf']}
+param_grid = {'C': [1e1], 
+              'gamma': [1e-3], 
+              'kernel': ['rbf']}
 #grid = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=20, n_jobs=32)
 grid = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=20, n_jobs=16)
-grid_trained, _, _, _ = evaluate_classifier(grid, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
+grid_trained, _, _, results_report, cnf_matrix = evaluate_classifier(grid, X_train, X_test, y_train, y_test, class_names, feature_scale=True)
 
 print(f"The best parameters are {grid_trained.best_params_} with a score of {grid_trained.best_score_:2f}")
 ```
@@ -267,5 +267,84 @@ ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=
 ```
 
 ```python
+# Get classfication report as pandas df
+df_results = pd.DataFrame(results_report).transpose()  
 
+# Get class-wise accuracy from confusion matrix
+class_wise_acc = cnf_matrix.diagonal()/cnf_matrix.sum(axis=1)
+
+# Get macro avg of accuracies
+macro_avg_acc = np.average(class_wise_acc)
+
+# Get weighted avg of accuracies
+samples = df_results.support.values[:-3]  # Bottom 3 rows are acc., macro avg and weighted avg in report
+weights = samples / np.sum(samples)
+weighted_avg_acc = np.average(class_wise_acc, weights=weights)
+
+# Drop the accuracies row
+df_results = df_results[df_results.index != 'accuracy']
+
+# Add accuracies column
+acc_column_values = np.append(class_wise_acc, [macro_avg_acc, weighted_avg_acc])
+df_results.insert (0, 'Acc.', acc_column_values)
+
+# Round the values to 2 decimals
+df_results = df_results.round(2).astype({'support': 'int32'})  
+
+# Remove samples from 'macro avg' and 'weighed avg'
+df_results.loc[df_results.index == 'weighted avg', 'support'] = ''  
+df_results.loc[df_results.index == 'macro avg', 'support'] = ''  
+
+# Rename the support column to 'samples'
+df_results = df_results.rename(columns={'precision': 'Prec.',
+                                        'recall': 'Recall',
+                                        'f1-score': 'F1-score',
+                                        'support': 'Samples'},
+                               index={'macro avg': 'Macro avg.',
+                                      'weighted avg': 'Weighted avg.'})
+
+
+# Print df in latex format (I normally add a /midrule above 'Macro avg.')
+print(df_results.to_latex(index=True))  
+```
+
+```python
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import make_moons, make_circles, make_classification
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+
+# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+names = ["Nearest Neighbors", "Linear SVM", "RBF SVM", "Gaussian Process",
+         "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
+         "Naive Bayes", "QDA"]
+
+classifiers = [
+    KNeighborsClassifier(3),
+    SVC(kernel="linear", C=10),
+    SVC(gamma=0.001, C=10),
+    GaussianProcessClassifier(1.0 * RBF(1.0)),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1, max_iter=1000),
+    AdaBoostClassifier(),
+    GaussianNB(),
+    QuadraticDiscriminantAnalysis()]
+
+# TODO: Also calculate uncertainties - ie. use multiple random seeds
+#       See following on how to format pandas dataframe to get the uncertainties into the df
+#       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
+
+for name, clf in zip(names, classifiers):
+    print("-------------------------------------------------------------------------------")
+    print(f"Evaluating classifier: {name}")
+    clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
 ```

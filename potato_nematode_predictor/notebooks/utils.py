@@ -445,4 +445,4 @@ def evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feat
         plot_confusion_matrix(cnf_matrix, classes=class_names)
     
     # Return the trained classifier to be used on future predictions
-    return clf, scaler, test_accuracy, results_report_dict
+    return clf, scaler, test_accuracy, results_report_dict, cnf_matrix
