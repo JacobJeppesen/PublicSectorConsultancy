@@ -1,4 +1,6 @@
 ```python
+import os
+import random
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -49,6 +51,11 @@ mapping_dict_crop_types = {
 
 # Set seed for random generators
 RANDOM_SEED = 42
+
+# Seed the random generators
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
+os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
 ```
 
 ```python

@@ -1,4 +1,7 @@
 ```python pycharm={"is_executing": false}
+import os
+import random
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns;
 import xarray as xr
@@ -24,6 +27,14 @@ PROJ_PATH = Path.cwd().parent
 
 # Define which field polygons should be used for analysis (2017 to 2019 seem to follow the same metadata format)
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
+
+# Set seed for random generators
+RANDOM_SEED = 42
+
+# Seed the random generators
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
+os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED)
 ```
 
 ```python pycharm={"is_executing": false}
