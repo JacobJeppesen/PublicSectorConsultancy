@@ -274,6 +274,80 @@ ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=
 ```
 
 ```python
+from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression          
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
+
+# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
+names = [
+    "Nearest Neighbors", 
+    "Decision Tree", 
+    "Random Forest", 
+    "Logistic Regression",
+    "Linear SVM", 
+    "RBF SVM",
+    "Neural Net"
+    ]
+
+N_JOBS=16
+classifiers = [
+    GridSearchCV(KNeighborsClassifier(), 
+                 param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED), 
+                 param_grid={'max_depth': [2, 3, 4, 5, 6, 7, 8]}, 
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED), 
+                 param_grid={'max_depth': [2, 3, 4, 5, 6, 7, 8], 
+                             'n_estimators': [6, 8, 10, 12, 14], 
+                             'max_features': [1, 2, 3]},
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(LogisticRegression(random_state=RANDOM_SEED),
+                 param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1],
+                             'penalty': ['l1', 'l2']},
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED),
+                 param_grid={'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]},
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED),
+                 param_grid={'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]},
+                 refit=True, cv=5, n_jobs=N_JOBS),
+    GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
+                 param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
+                             'hidden_layer_sizes': [(50,50,50), (100,)],
+                             'activation': ['tanh', 'relu'],
+                             'learning_rate': ['constant','adaptive']},
+                 refit=True, cv=5, n_jobs=N_JOBS)
+    ]
+
+clf_trained_dict = {}
+report_dict = {}
+cm_dict = {}
+
+# TODO: Also calculate uncertainties - ie. use multiple random seeds.
+#       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
+#       See following on how to format pandas dataframe to get the uncertainties into the df
+#       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
+
+for name, clf in zip(names, classifiers):
+    # Evaluate classifier
+    print("-------------------------------------------------------------------------------")
+    print(f"Evaluating classifier: {name}")
+    clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
+    print(f"The best parameters are {grid_trained.best_params_} with a score of {grid_trained.best_score_:2f}")
+    
+    # Save results in dicts
+    clf_trained_dict[name] = clf_trained 
+    report_dict[name] = results_report 
+    cm_dict[name] = cnf_matrix
+```
+
+```python
 # Get classfication report as pandas df
 df_results = pd.DataFrame(results_report).transpose()  
 
@@ -319,48 +393,6 @@ df_results = df_results.rename(columns={'precision': 'Prec.',
 # Print df in latex format (I normally add a /midrule above 'Macro avg.')
 pd.options.display.float_format = '{:.2f}'.format  # Show 2 decimals
 print(df_results.to_latex(index=True))  
-```
-
-```python
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.datasets import make_moons, make_circles, make_classification
-from sklearn.neural_network import MLPClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
-
-# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
-# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
-names = ["Nearest Neighbors", "Linear SVM", "RBF SVM",
-         "Decision Tree", "Random Forest", "Neural Net", "AdaBoost",
-         "Naive Bayes", "QDA"]
-
-classifiers = [
-    KNeighborsClassifier(3),
-    SVC(kernel="linear", C=10),
-    SVC(gamma=0.001, C=10),
-    DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-    MLPClassifier(alpha=1, max_iter=1000),
-    AdaBoostClassifier(),
-    GaussianNB(),
-    QuadraticDiscriminantAnalysis()]
-
-# TODO: Also calculate uncertainties - ie. use multiple random seeds.
-#       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
-#       See following on how to format pandas dataframe to get the uncertainties into the df
-#       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
-
-for name, clf in zip(names, classifiers):
-    print("-------------------------------------------------------------------------------")
-    print(f"Evaluating classifier: {name}")
-    clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
 ```
 
 ```python
