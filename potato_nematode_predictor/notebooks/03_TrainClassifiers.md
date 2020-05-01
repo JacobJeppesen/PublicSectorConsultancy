@@ -184,10 +184,10 @@ classifiers = [
                              'penalty': ['l1', 'l2']},
                  refit=True, cv=5, n_jobs=N_JOBS),
     GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED),
-                 param_grid={'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]},
+                 param_grid={'C': [1e-1, 1, 1e1, 1e2, 1e3, 1e4]},
                  refit=True, cv=5, n_jobs=N_JOBS),
     GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED),
-                 param_grid={'C': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]},
+                 param_grid={'C': [1e-1, 1, 1e1, 1e2, 1e3, 1e4]},
                  refit=True, cv=5, n_jobs=N_JOBS),
     GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
                  param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
@@ -211,40 +211,25 @@ for name, clf in zip(names, classifiers):
     print("-------------------------------------------------------------------------------")
     print(f"Evaluating classifier: {name}")
     clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
-    print(f"The best parameters are {grid_trained.best_params_} with a score of {grid_trained.best_score_:2f}")
+    print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
     
     # Save results in dicts
     clf_trained_dict[name] = clf_trained
-    report_dict[name] = results_report 
+    report_dict[name] = results_report
     cm_dict[name] = cnf_matrix
 ```
 
 ```python
-# Loop over cm_dict and get pycm from each. Create a df with results and send output to latex.
+# Show performance of all classifiers on entire dataset
+# Loop over cm_dict and get pycm from each. Create a df with results from each classifier, and send output to latex.
+
 ```
 
 ```python
+# Show performance on different classes with best performing classifier
+
 # Get classfication report as pandas df
-df_results = pd.DataFrame(results_report).transpose()  
-
-# THIS IS WRONG! IT IS RECALL WE ARE CALCULATING!
-# Get class-wise accuracy from confusion matrix
-#class_wise_acc = cnf_matrix.diagonal()/cnf_matrix.sum(axis=1)
-
-# Get macro avg of accuracies
-#macro_avg_acc = np.average(class_wise_acc)
-
-# Get weighted avg of accuracies
-#samples = df_results.support.values[:-3]  # Bottom 3 rows are acc., macro avg and weighted avg in report
-#weights = samples / np.sum(samples)
-#weighted_avg_acc = np.average(class_wise_acc, weights=weights)
-
-# Drop the accuracies row
-#df_results = df_results[df_results.index != 'accuracy']
-
-# Add accuracies column
-#acc_column_values = np.append(class_wise_acc, [macro_avg_acc, weighted_avg_acc])
-#df_results.insert (0, 'Acc.', acc_column_values)
+df_results = pd.DataFrame(report_dict['RBF SVM']).transpose()  
 
 # Round the values to 2 decimals
 df_results = df_results.astype({'support': 'int32'}).round(2) 
@@ -253,8 +238,6 @@ df_results = df_results.astype({'support': 'int32'}).round(2)
 df_results.loc[df_results.index == 'accuracy', 'precision'] = ''  
 df_results.loc[df_results.index == 'accuracy', 'recall'] = ''  
 df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
-#df_results.loc[df_results.index == 'weighted avg', 'support'] = ''  
-#df_results.loc[df_results.index == 'macro avg', 'support'] = ''  
 
 # Rename the support column to 'samples'
 df_results = df_results.rename(columns={'precision': 'Prec.',
@@ -266,12 +249,13 @@ df_results = df_results.rename(columns={'precision': 'Prec.',
                                       'weighted avg': 'Weighted avg.'})
 
 
-# Print df in latex format (I normally add a /midrule above 'Macro avg.')
+# Print df in latex format (I normally add a /midrule above 'Macro avg.' and delete 'Overall acc.')
 pd.options.display.float_format = '{:.2f}'.format  # Show 2 decimals
 print(df_results.to_latex(index=True))  
 ```
 
 ```python
+"""
 # Idea: Maybe make a utils folder, with a plotting module, evaluation module etc.. The below here should 
 #       then be put in the plotting module. 
 mean_test_scores = grid_trained.cv_results_['mean_test_score']
@@ -294,6 +278,7 @@ ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
 df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
 plt.figure(figsize=(10,8))
 ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
+"""
 ```
 
 ```python
@@ -342,10 +327,6 @@ def numpy_confusion_matrix_to_pycm(confusion_matrix_numpy, labels=None):
 ```
 
 ```python
-pycm_confusion_matrix = numpy_confusion_matrix_to_pycm(cnf_matrix, labels=class_names)
-print(pycm_confusion_matrix.ACC)
-```
-
-```python
-pycm_confusion_matrix.stat()
+#pycm_confusion_matrix = numpy_confusion_matrix_to_pycm(cnf_matrix, labels=class_names)
+#print(pycm_confusion_matrix.ACC)
 ```
