@@ -120,8 +120,51 @@ classifiers = {
                                                'learning_rate': ['constant','adaptive']},
                                    refit=True, cv=5, n_jobs=N_JOBS)
     }
+```
 
+```python
+from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression          
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
 
+# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
+N_JOBS=24
+classifiers = { 
+    'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
+                                      param_grid={'n_neighbors': [2, 4, 6, 8]}, 
+                                      refit=True, cv=5, n_jobs=N_JOBS),
+    'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
+                                              'n_estimators': [6, 8, 10, 12, 14], 
+                                              'max_features': [1, 2, 3]},
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
+                                        param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                    'penalty': ['none', 'l2']},
+                                        refit=True, cv=5, n_jobs=N_JOBS),
+    'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
+                               #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                               param_grid={'C': [1e-3, 1e-2, 1e-1, 1]},
+                               refit=True, cv=5, n_jobs=N_JOBS),
+    'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
+                            #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                            param_grid={'C': [1e-3, 1e-2, 1e-1, 1]},
+                            refit=True, cv=5, n_jobs=N_JOBS),
+    'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
+                                   param_grid={'alpha': [1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                               'hidden_layer_sizes': [(50,50,50), (100,)],
+                                               'activation': ['relu'],
+                                               'learning_rate': ['constant']},
+                                   refit=True, cv=5, n_jobs=N_JOBS)
+    }
 ```
 
 ```python
@@ -151,8 +194,7 @@ df_clf_results = pd.DataFrame(columns=['Classifier', 'Date', 'Crop type', 'Prec.
 
 # Add an extra month to the date range at each iteration in the loop
 year = 2018
-#for i in range(7, 24, 1):
-for i in range(7, 10, 1):
+for i in range(7, 24, 1):
     month = (i % 12) + 1
     if month == 1:
         year += 1
@@ -218,6 +260,15 @@ for i in range(7, 10, 1):
         df_clf_results.index = df_clf_results.index + 1  # shifting index
         df_clf_results = df_clf_results.sort_index()  # sorting by index
     
+# Save df with results to disk
+save_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
+df_clf_results.to_pickle(save_path)
+```
+
+```python
+# Load the df with results from saved file
+load_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
+df_clf_results = pd.read_pickle(load_path)
 ```
 
 ```python
@@ -233,12 +284,19 @@ for tick in ax.get_xticklabels():
 ```
 
 ```python
-df_crop = df_clf_results[df_clf_results['Crop type'] != 'Overall']
-df_crop = df_crop[df_crop['Classifier'] == 'Decision Tree']
+# Select classifier to plot
+df_crop = df_clf_results[df_clf_results['Classifier'] == 'Decision Tree']
+
+# Drop the 'Overall' results and only use the individual crop types
+df_crop = df_crop[df_crop['Crop type'] != 'Overall']
 
 # Define markers 
 # Note: Markers are not working in lineplots (see https://github.com/mwaskom/seaborn/issues/1513#issuecomment-480261748)
 filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
+# Take a look at:
+# https://seaborn.pydata.org/tutorial/relational.html#relational-tutorial
+# and
+# https://seaborn.pydata.org/generated/seaborn.lineplot.html
 
 ax = sns.lineplot(x="Date", y="F1-Score", hue='Crop type', data=df_crop.sort_index(ascending=False), ci=None)
 ax.set_ylabel('F1-score')
@@ -249,4 +307,8 @@ for tick in ax.get_xticklabels():
     
 ax.legend(bbox_to_anchor=(1.05, 0.95), loc=2, borderaxespad=0.)
 #ax.legend(loc='center right', bbox_to_anchor=(1.25, 0.5), ncol=1)
+```
+
+```python
+
 ```
