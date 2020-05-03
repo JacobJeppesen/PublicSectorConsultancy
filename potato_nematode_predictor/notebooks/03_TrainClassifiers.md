@@ -6,13 +6,14 @@ import pandas as pd
 import xarray as xr
 import seaborn as sns
 
+sns.set_style('ticks')
 from pathlib import Path
 from tqdm.autonotebook import tqdm
 from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split         # Split data into train and test set
 from sklearn.metrics import classification_report            # Summary of classifier performance
 
-from utils import get_df, evaluate_classifier
+from utils import get_df, evaluate_classifier, numpy_confusion_matrix_to_pycm, save_confusion_matrix_fig 
 
 # Automatically prints execution time for the individual cells
 %load_ext autotime
@@ -156,46 +157,38 @@ from sklearn.neural_network import MLPClassifier
 
 # From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
 # Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
-names = [
-    "Nearest Neighbors", 
-    "Decision Tree", 
-    "Random Forest", 
-    "Logistic Regression",
-    "Linear SVM", 
-    "RBF SVM",
-    "Neural Net"
-    ]
-
 N_JOBS=24
-classifiers = [
-    GridSearchCV(KNeighborsClassifier(), 
-                 param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED), 
-                 param_grid={'max_depth': [2, 3, 4, 5, 6, 7, 8]}, 
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED), 
-                 param_grid={'max_depth': [2, 3, 4, 5, 6, 7, 8], 
-                             'n_estimators': [6, 8, 10, 12, 14], 
-                             'max_features': [1, 2, 3]},
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(LogisticRegression(random_state=RANDOM_SEED),
-                 param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1],
-                             'penalty': ['l1', 'l2']},
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED),
-                 param_grid={'C': [1e-1, 1, 1e1, 1e2, 1e3, 1e4]},
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED),
-                 param_grid={'C': [1e-1, 1, 1e1, 1e2, 1e3, 1e4]},
-                 refit=True, cv=5, n_jobs=N_JOBS),
-    GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
-                 param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
-                             'hidden_layer_sizes': [(50,50,50), (100,)],
-                             'activation': ['tanh', 'relu'],
-                             'learning_rate': ['constant','adaptive']},
-                 refit=True, cv=5, n_jobs=N_JOBS)
-    ]
+classifiers = { 
+    'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
+                                      param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
+                                      refit=True, cv=5, n_jobs=N_JOBS),
+    'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
+                                              'n_estimators': [6, 8, 10, 12, 14], 
+                                              'max_features': [1, 2, 3]},
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
+                                        param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                    'penalty': ['none', 'l2']},
+                                        refit=True, cv=5, n_jobs=N_JOBS),
+    'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
+                               #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                               param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                               refit=True, cv=5, n_jobs=N_JOBS),
+    'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
+                            #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                            param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                            refit=True, cv=5, n_jobs=N_JOBS),
+    'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
+                                   param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3],
+                                               'hidden_layer_sizes': [(50,50,50), (100, 100, 100), (100,)],
+                                               'activation': ['tanh', 'relu'],
+                                               'learning_rate': ['constant','adaptive']},
+                                   refit=True, cv=5, n_jobs=N_JOBS)
+    }
 
 clf_trained_dict = {}
 report_dict = {}
@@ -206,13 +199,13 @@ cm_dict = {}
 #       See following on how to format pandas dataframe to get the uncertainties into the df
 #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
 
-for name, clf in zip(names, classifiers):
+for name, clf in classifiers.items():
     # Evaluate classifier
     print("-------------------------------------------------------------------------------")
     print(f"Evaluating classifier: {name}")
     clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
     print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
-    
+
     # Save results in dicts
     clf_trained_dict[name] = clf_trained
     report_dict[name] = results_report
@@ -220,14 +213,27 @@ for name, clf in zip(names, classifiers):
 ```
 
 ```python
-# Show performance of all classifiers on entire dataset
-# Loop over cm_dict and get pycm from each. Create a df with results from each classifier, and send output to latex.
-
+# Create df with results from classifiers and create latex table with them
+df_clf_results = pd.DataFrame(columns=['Name', 'Prec.', 'Recall', 'F1-Score', 'Acc.'])
+for name, results_report in report_dict.items():
+    df_results = pd.DataFrame(report_dict[name]).transpose()  
+    prec = df_results.loc['weighted avg', 'precision']
+    recall = df_results.loc['weighted avg', 'recall']
+    f1 = df_results.loc['weighted avg', 'f1-score']
+    acc = df_results.loc['accuracy', 'f1-score']
+    
+    # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+    df_clf_results.loc[-1] = [name, prec, recall, f1, acc]
+    df_clf_results.index = df_clf_results.index + 1  # shifting index
+    df_clf_results = df_clf_results.sort_index()  # sorting by index
+    
+# Print df in latex format
+pd.options.display.float_format = '{:.2f}'.format  # Show 2 decimals
+print(df_clf_results.sort_index(ascending=False).to_latex(index=False))  
 ```
 
 ```python
 # Show performance on different classes with best performing classifier
-
 # Get classfication report as pandas df
 df_results = pd.DataFrame(report_dict['RBF SVM']).transpose()  
 
@@ -255,78 +261,16 @@ print(df_results.to_latex(index=True))
 ```
 
 ```python
-"""
-# Idea: Maybe make a utils folder, with a plotting module, evaluation module etc.. The below here should 
-#       then be put in the plotting module. 
-mean_test_scores = grid_trained.cv_results_['mean_test_score']
-mean_fit_times = grid_trained.cv_results_['mean_fit_time']
-param_columns = list(grid_trained.cv_results_['params'][0].keys())
-result_columns = ['mean_fit_time', 'mean_test_score']
-num_fits = len(grid_trained.cv_results_['params'])
-
-df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-for i, param_set in enumerate(grid_trained.cv_results_['params']):
-    for param, value in param_set.items():
-        df_cv_results.loc[i, param] = value 
-    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
-    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
+# Save the confusion matrix figure you want
+plot_name = 'RBF_SVM_conf_matrix'
+plot_path = PROJ_PATH / 'reports' / 'figures' / 'conf_matrices' / plot_name
+if not plot_path.parent.exists():
+    plot_path.parent.mkdir()
     
-df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
-plt.figure(figsize=(10,8))
-ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
-
-df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
-plt.figure(figsize=(10,8))
-ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
-"""
+save_confusion_matrix_fig(cm_dict['RBF SVM'], classes=class_names, save_path=plot_path)
+save_confusion_matrix_fig(cm_dict['RBF SVM'], classes=class_names, save_path=plot_path, normalized=True)
 ```
 
 ```python
-try:
-    from pycm import ConfusionMatrix
-except:
-    !pip install pycm
-    from pycm import ConfusionMatrix
 
-def numpy_confusion_matrix_to_pycm(confusion_matrix_numpy, labels=None):
-    """Create a pycm confusion matrix from a NumPy confusion matrix
-    Creates a confusion matrix object with the pycm library based on a confusion matrix as 2D NumPy array (such as
-    the one generated by the sklearn confusion matrix function).
-    See more about pycm confusion matrices at `pycm`_, and see more
-    about sklearn confusion matrices at `sklearn confusion matrix`_.
-    Args:
-        confusion_matrix_numpy (np.array((num_classes, num_classes)) :
-        labels (list) :
-    Returns:
-        confusion_matrix_pycm (pycm.ConfusionMatrix) :
-    .. _`pycm`: https://github.com/sepandhaghighi/pycm
-    .. _`sklearn confusion matrix`:
-        https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
-    """
-    # Create empty dict to be used as input for pycm (see https://github.com/sepandhaghighi/pycm#direct-cm)
-    confusion_matrix_dict = {}
-
-    # Find number and classes and check labels
-    num_classes = np.shape(confusion_matrix_numpy)[0]
-    if not labels:  # If no labels are provided just use [0, 1, ..., num_classes]
-        labels = range(num_classes)
-    elif len(labels) != num_classes:
-        raise AttributeError("Number of provided labels does not match number of classes.")
-
-    # Fill the dict in the format required by pycm with values from the sklearn confusion matrix
-    for row in range(num_classes):
-        row_dict = {}
-        for col in range(num_classes):
-            row_dict[str(labels[col])] = int(confusion_matrix_numpy[row, col])
-        confusion_matrix_dict[str(labels[row])] = row_dict
-
-    # Instantiate the pycm confusion matrix from the dict
-    confusion_matrix_pycm = ConfusionMatrix(matrix=confusion_matrix_dict)
-
-    return confusion_matrix_pycm
-```
-
-```python
-#pycm_confusion_matrix = numpy_confusion_matrix_to_pycm(cnf_matrix, labels=class_names)
-#print(pycm_confusion_matrix.ACC)
 ```

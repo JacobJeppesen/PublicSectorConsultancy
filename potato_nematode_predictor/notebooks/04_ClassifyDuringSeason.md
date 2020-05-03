@@ -6,6 +6,7 @@ import pandas as pd
 import xarray as xr
 import seaborn as sns
 
+sns.set_style('ticks')
 from pathlib import Path
 from matplotlib import pyplot as plt
 from tqdm.autonotebook import tqdm
@@ -77,32 +78,54 @@ df = df.dropna()
 ```
 
 ```python
-# Dicts to hold results
-test_acc_logistic_regression = {'2018-07-01': 0}
-classification_reports_logistic_regression = {}
-trained_classifiers_logistic_regression = {}
+from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression          
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
 
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
+# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
+N_JOBS=24
+classifiers = { 
+    'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
+                                      param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
+                                      refit=True, cv=5, n_jobs=N_JOBS),
+    'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
+                                              'n_estimators': [6, 8, 10, 12, 14], 
+                                              'max_features': [1, 2, 3]},
+                                  refit=True, cv=5, n_jobs=N_JOBS),
+    'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
+                                        param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                    'penalty': ['none', 'l2']},
+                                        refit=True, cv=5, n_jobs=N_JOBS),
+    'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
+                               #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                               param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                               refit=True, cv=5, n_jobs=N_JOBS),
+    'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
+                            #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                            param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                            refit=True, cv=5, n_jobs=N_JOBS),
+    'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
+                                   param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3],
+                                               'hidden_layer_sizes': [(50,50,50), (100, 100, 100), (100,)],
+                                               'activation': ['tanh', 'relu'],
+                                               'learning_rate': ['constant','adaptive']},
+                                   refit=True, cv=5, n_jobs=N_JOBS)
+    }
 
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
+
+```
+
+```python
+def remap_df(df_sklearn):
     df_sklearn_remapped = df_sklearn.copy()
     df_sklearn_remapped.insert(3, 'Crop type', '')
     df_sklearn_remapped.insert(4, 'Label ID', 0)
@@ -118,64 +141,27 @@ for i in range(7, 24, 1):
 
     for key, value in mapping_dict.items():
         df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.linear_model import LogisticRegression          
-    clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
     
-    test_acc_logistic_regression[end_date] = accuracy_test
-    classification_reports_logistic_regression[end_date] = results_report 
-    trained_classifiers_logistic_regression[end_date] = clf_trained 
+    return df_sklearn_remapped, class_names
 ```
 
 ```python
-x = list(test_acc_logistic_regression.keys())
-y = list(test_acc_logistic_regression.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
+df_clf_results = pd.DataFrame(columns=['Classifier', 'Date', 'Crop type', 'Prec.', 'Recall', 
+                                       'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_logistic_regression_balanced = {'2018-07-01': 0}
-classification_reports_logistic_regression_balanced = {}
-trained_classifiers_logistic_regression_balanced = {}
-
+# Add an extra month to the date range at each iteration in the loop
 year = 2018
-for i in range(7, 24, 1):
+#for i in range(7, 24, 1):
+for i in range(7, 10, 1):
     month = (i % 12) + 1
     if month == 1:
         year += 1
         
     end_date = f'{year}-{month:02}-01'
         
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
+    print(f"\n\n#########################################")
+    print(f"# Dataset from 2018-07-01 to {end_date} #")
+    print(f"#########################################\n")
     df_sklearn = get_sklearn_df(polygons_year=2019, 
                                 satellite_dates=slice('2018-07-01', f'{end_date}'), 
                                 fields='all', 
@@ -183,743 +169,84 @@ for i in range(7, 24, 1):
                                 polarization='all',
                                 crop_type='all',
                                 netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
     
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
+    df_sklearn_remapped, class_names = remap_df(df_sklearn)
+    
     # Get values as numpy array
     array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
     X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
     y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.linear_model import LogisticRegression          
-    clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000, class_weight='balanced')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, shuffle=True, random_state=RANDOM_SEED)
     
-    test_acc_logistic_regression_balanced[end_date] = accuracy_test
-    classification_reports_logistic_regression_balanced[end_date] = results_report 
-    trained_classifiers_logistic_regression_balanced[end_date] = clf_trained 
+    # TODO: Also calculate uncertainties - ie. use multiple random seeds.
+    #       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
+    #       See following on how to format pandas dataframe to get the uncertainties into the df
+    #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
+    
+    for name, clf in classifiers.items():
+        # Evaluate classifier
+        print("-------------------------------------------------------------------------------")
+        print(f"Evaluating classifier: {name}")
+        clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True,
+                                                                           plot_conf_matrix=False, print_classification_report=True)      
+        print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
+
+        # Save results for individual crops in df
+        df_results = pd.DataFrame(results_report).transpose()  
+        for crop_type in class_names:
+            # Get values
+            prec = df_results.loc[crop_type, 'precision']
+            recall = df_results.loc[crop_type, 'recall']
+            f1 = df_results.loc[crop_type, 'f1-score']
+            samples = df_results.loc[crop_type, 'support']
+            acc = None
+
+            # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+            df_clf_results.loc[-1] = [name, end_date, crop_type, prec, recall, f1, acc, samples, RANDOM_SEED]
+            df_clf_results.index = df_clf_results.index + 1  # shifting index
+            df_clf_results = df_clf_results.sort_index()  # sorting by index
+        
+        # Save overall results
+        prec = df_results.loc['weighted avg', 'precision']
+        recall = df_results.loc['weighted avg', 'recall']
+        f1 = df_results.loc['weighted avg', 'f1-score']
+        acc = df_results.loc['accuracy', 'f1-score']
+        samples = df_results.loc['weighted avg', 'support']
+        
+        # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+        df_clf_results.loc[-1] = [name, end_date, 'Overall', prec, recall, f1, acc, samples, RANDOM_SEED]
+        df_clf_results.index = df_clf_results.index + 1  # shifting index
+        df_clf_results = df_clf_results.sort_index()  # sorting by index
+    
 ```
 
 ```python
-x = list(test_acc_logistic_regression_balanced.keys())
-y = list(test_acc_logistic_regression_balanced.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
+# If you loop over random seeds, the confidence interval can be made just by setting ci='std'
+df_overall = df_clf_results[df_clf_results['Crop type'] == 'Overall'].astype({'Accuracy': 'float64'})
+ax = sns.lineplot(x="Date", y="Accuracy", hue='Classifier', data=df_overall.sort_index(ascending=False), markers=True, ci=None)
+#ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 ax.set_ylabel('Test accuracy')
+ax.set_xlabel('')
 ax.set_ylim(0, 1)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
 ```
 
 ```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
+df_crop = df_clf_results[df_clf_results['Crop type'] != 'Overall']
+df_crop = df_crop[df_crop['Classifier'] == 'Decision Tree']
 
-```python
-# Dicts to hold results
-test_acc_logistic_regression_cv = {'2018-07-01': 0}
-classification_reports_logistic_regression_cv = {}
-trained_classifiers_logistic_regression_cv = {}
+# Define markers 
+# Note: Markers are not working in lineplots (see https://github.com/mwaskom/seaborn/issues/1513#issuecomment-480261748)
+filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
 
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.linear_model import LogisticRegressionCV          
-
-    # Instantiate and evaluate classifier
-    clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=5, n_jobs=32, random_state=RANDOM_SEED, max_iter=1000)
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_logistic_regression_cv[end_date] = accuracy_test
-    classification_reports_logistic_regression_cv[end_date] = results_report 
-    trained_classifiers_logistic_regression_cv[end_date] = clf_trained 
-    
-```
-
-```python
-x = list(test_acc_logistic_regression_cv.keys())
-y = list(test_acc_logistic_regression_cv.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
+ax = sns.lineplot(x="Date", y="F1-Score", hue='Crop type', data=df_crop.sort_index(ascending=False), ci=None)
+ax.set_ylabel('F1-score')
+ax.set_xlabel('')
 ax.set_ylim(0, 1)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_logistic_regression_cv_balanced = {'2018-07-01': 0}
-classification_reports_logistic_regression_cv_balanced = {}
-trained_classifiers_logistic_regression_cv_balanced = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
     
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.linear_model import LogisticRegressionCV          
-
-    # Instantiate and evaluate classifier
-    clf = LogisticRegressionCV(solver='lbfgs', multi_class='auto', cv=5, n_jobs=32, random_state=RANDOM_SEED, max_iter=1000, 
-                               class_weight='balanced')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_logistic_regression_cv_balanced[end_date] = accuracy_test
-    classification_reports_logistic_regression_cv_balanced[end_date] = results_report 
-    trained_classifiers_logistic_regression_cv_balanced[end_date] = clf_trained 
-```
-
-```python
-x = list(test_acc_logistic_regression_cv_balanced.keys())
-y = list(test_acc_logistic_regression_cv_balanced.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_svm_linear = {'2018-07-01': 0}
-classification_reports_svm_linear = {}
-trained_classifiers_svm_linear = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.svm import SVC   
-    from sklearn.model_selection import GridSearchCV
-
-    # Instantiate and evaluate classifier
-    param_grid = {'C': [1, 10, 100], 'gamma': [0.0001, 0.001, 0.01, 0.1], 'kernel': ['linear']}
-    #clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
-    clf = SVC(kernel='linear')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_svm_linear[end_date] = accuracy_test
-    classification_reports_svm_linear[end_date] = results_report 
-    trained_classifiers_svm_linear[end_date] = clf_trained 
-```
-
-```python
-x = list(test_acc_svm_linear.keys())
-y = list(test_acc_svm_linear.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_svm_linear_balanced = {'2018-07-01': 0}
-classification_reports_svm_linear_balanced = {}
-trained_classifiers_svm_linear_balanced = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.svm import SVC   
-    from sklearn.model_selection import GridSearchCV
-
-    # Instantiate and evaluate classifier
-    param_grid = {'C': [1, 10, 100], 'gamma': [0.0001, 0.001, 0.01, 0.1], 'kernel': ['linear']}
-    #clf = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
-    clf = SVC(kernel='linear', class_weight='balanced')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_svm_linear_balanced[end_date] = accuracy_test
-    classification_reports_svm_linear_balanced[end_date] = results_report 
-    trained_classifiers_svm_linear_balanced[end_date] = clf_trained 
-```
-
-```python
-x = list(test_acc_svm_linear_balanced.keys())
-y = list(test_acc_svm_linear_balanced.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_svm_rbf = {'2018-07-01': 0}
-classification_reports_svm_rbf = {}
-trained_classifiers_svm_rbf = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.svm import SVC   
-    from sklearn.model_selection import GridSearchCV
-
-    # Instantiate and evaluate classifier
-    param_grid = {'C': [1, 10, 100], 'gamma': [0.0001, 0.001, 0.01, 0.1], 'kernel': ['rbf']}
-    #clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
-    clf = SVC(kernel='rbf')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_svm_rbf[end_date] = accuracy_test
-    classification_reports_svm_rbf[end_date] = results_report 
-    trained_classifiers_svm_rbf[end_date] = clf_trained 
-```
-
-```python
-x = list(test_acc_svm_rbf.keys())
-y = list(test_acc_svm_rbf.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_svm_rbf_balanced = {'2018-07-01': 0}
-classification_reports_svm_rbf_balanced = {}
-trained_classifiers_svm_rbf_balanced = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.svm import SVC   
-    from sklearn.model_selection import GridSearchCV
-
-    # Instantiate and evaluate classifier
-    param_grid = {'C': [1, 10, 100], 'gamma': [0.0001, 0.001, 0.01, 0.1], 'kernel': ['rbf']}
-    #clf = GridSearchCV(SVC(class_weight='balanced'), param_grid, refit=True, cv=5, verbose=0, n_jobs=32)
-    clf = SVC(kernel='rbf', class_weight='balanced')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    test_acc_svm_rbf_balanced[end_date] = accuracy_test
-    classification_reports_svm_rbf_balanced[end_date] = results_report 
-    trained_classifiers_svm_rbf_balanced[end_date] = clf_trained 
-```
-
-```python
-x = list(test_acc_svm_rbf_balanced.keys())
-y = list(test_acc_svm_rbf_balanced.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-# Dicts to hold results
-test_acc_svm_rbf_cv = {'2018-07-01': 0}
-classification_reports_svm_rbf_cv = {}
-trained_classifiers_svm_rbf_cv = {}
-
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"--------------------------------------------------------------------------------------------------")
-    print(f"Dataset from 2018-07-01 to {end_date}")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-
-    #df_sklearn = df_sklearn[df_sklearn['afgroede'].isin(['Vårbyg', 'Vinterhvede', 'Silomajs', 'Vinterraps', 
-    #                                                     'Vinterbyg', 'Vårhavre', 'Vinterhybridrug'])]
-    
-    df_sklearn_remapped = df_sklearn.copy()
-    df_sklearn_remapped.insert(3, 'Crop type', '')
-    df_sklearn_remapped.insert(4, 'Label ID', 0)
-    mapping_dict = {}
-    class_names = [] 
-    i = 0
-    for key, value in mapping_dict_crop_types.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
-        if value not in class_names:
-            class_names.append(value)
-            mapping_dict[value] = i
-            i += 1
-
-    for key, value in mapping_dict.items():
-        df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-    #print(f"Crop types: {class_names}")
-
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-
-    # Define the independent variables as features.
-    X = np.float32(array[:,5:])  # The features 
-
-    # Define the target (dependent) variable as labels.
-    y = np.int8(array[:,4])  # The column 'afgkode'
-
-    # Create a train/test split using 30% test size.
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
-
-    # Instantiate and evaluate classifier
-    from sklearn.svm import SVC   
-    from sklearn.model_selection import GridSearchCV
-
-    param_grid = {'C': [1, 3, 5, 10, 30, 50, 100, 300, 500, 1000], 'kernel': ['rbf']}
-    clf = GridSearchCV(SVC(), param_grid, refit=True, cv=5, verbose=0, n_jobs=12)
-    #clf = SVC(kernel='rbf')
-    clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                        feature_scale=True, plot_conf_matrix=True,
-                                                                        print_classification_report=False)
-    
-    print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
-    
-    test_acc_svm_rbf_cv[end_date] = accuracy_test
-    classification_reports_svm_rbf_cv[end_date] = results_report 
-    trained_classifiers_svm_rbf_cv[end_date] = clf_trained 
-    
-    # Idea: Maybe make a utils folder, with a plotting module, evaluation module etc.. The below here should 
-    #       then be put in the plotting module. 
-    #mean_test_scores = clf_trained.cv_results_['mean_test_score']
-    #mean_fit_times = clf_trained.cv_results_['mean_fit_time']
-    #param_columns = list(clf_trained.cv_results_['params'][0].keys())
-    #result_columns = ['mean_fit_time', 'mean_test_score']
-    #num_fits = len(clf_trained.cv_results_['params'])
-
-    #df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-    #for i, param_set in enumerate(clf_trained.cv_results_['params']):
-    #    for param, value in param_set.items():
-    #        df_cv_results.loc[i, param] = value 
-    #    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
-    #    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
-
-    #df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
-    #plt.figure(figsize=(10,8))
-    #ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
-
-    #df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
-    #plt.figure(figsize=(10,8))
-    #ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
-```
-
-```python
-x = list(test_acc_svm_rbf_cv.keys())
-y = list(test_acc_svm_rbf_cv.values())
-ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-ax.set_ylabel('Test accuracy')
-ax.set_ylim(0, 1)
-for tick in ax.get_xticklabels():
-    tick.set_rotation(90)
-```
-
-```python
-#mean_test_scores = clf_trained.cv_results_['mean_test_score']
-#mean_fit_times = clf_trained.cv_results_['mean_fit_time']
-#param_columns = list(clf_trained.cv_results_['params'][0].keys())
-#result_columns = ['mean_fit_time', 'mean_test_score']
-#num_fits = len(clf_trained.cv_results_['params'])
-
-#df_cv_results = pd.DataFrame(0, index=range(num_fits), columns=param_columns+result_columns)
-#for i, param_set in enumerate(clf_trained.cv_results_['params']):
-#    for param, value in param_set.items():
-#        df_cv_results.loc[i, param] = value 
-#    df_cv_results.loc[i, 'mean_test_score'] = mean_test_scores[i]
-#    df_cv_results.loc[i, 'mean_fit_time'] = mean_fit_times[i]
-
-#df_heatmap_mean_score = df_cv_results.pivot(index='C', columns='gamma', values='mean_test_score')
-#plt.figure(figsize=(10,8))
-#ax = sns.heatmap(df_heatmap_mean_score, annot=True, cmap=plt.cm.Blues)
-
-#df_heatmap_fit_time = df_cv_results.pivot(index='C', columns='gamma', values='mean_fit_time')
-#plt.figure(figsize=(10,8))
-#ax = sns.heatmap(df_heatmap_fit_time.astype('int64'), annot=True, fmt='d', cmap=plt.cm.Blues_r)
-```
-
-```python
-#x = list(test_acc_svm_rbf_cv.keys())
-#y = list(test_acc_svm_rbf_cv.values())
-#ax = sns.lineplot(x=x, y=y, sort=False, lw=1)
-#ax.set_ylabel('Test accuracy')
-#ax.set_ylim(0, 1)
-#for tick in ax.get_xticklabels():
-#    tick.set_rotation(90)
-```
-
-```python
-#for date, report in classification_reports_logistic_regression.items():
-#    print(date)
-#    print(report)
-```
-
-```python
-
+ax.legend(bbox_to_anchor=(1.05, 0.95), loc=2, borderaxespad=0.)
+#ax.legend(loc='center right', bbox_to_anchor=(1.25, 0.5), ncol=1)
 ```
