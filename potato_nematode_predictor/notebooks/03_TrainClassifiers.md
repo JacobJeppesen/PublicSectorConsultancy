@@ -214,7 +214,7 @@ for name, clf in classifiers.items():
 
 ```python
 # Create df with results from classifiers and create latex table with them
-df_clf_results = pd.DataFrame(columns=['Name', 'Prec.', 'Recall', 'F1-Score', 'Acc.'])
+df_clf_results = pd.DataFrame(columns=['Name', 'Acc.', 'Prec.', 'Recall', 'F1-Score'])
 for name, results_report in report_dict.items():
     df_results = pd.DataFrame(report_dict[name]).transpose()  
     prec = df_results.loc['weighted avg', 'precision']
@@ -223,7 +223,7 @@ for name, results_report in report_dict.items():
     acc = df_results.loc['accuracy', 'f1-score']
     
     # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
-    df_clf_results.loc[-1] = [name, prec, recall, f1, acc]
+    df_clf_results.loc[-1] = [name, acc, prec, recall, f1]
     df_clf_results.index = df_clf_results.index + 1  # shifting index
     df_clf_results = df_clf_results.sort_index()  # sorting by index
     

@@ -50,6 +50,9 @@ mapping_dict_crop_types = {
     'Skovdrift, alm.': 'Forest'
 }
 
+# Set number of parallel jobs
+N_JOBS = 24
+
 # Set seed for random generators
 RANDOM_SEED = 42
 
@@ -78,6 +81,7 @@ df = df.dropna()
 ```
 
 ```python
+"""
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -120,6 +124,7 @@ classifiers = {
                                                'learning_rate': ['constant','adaptive']},
                                    refit=True, cv=5, n_jobs=N_JOBS)
     }
+"""
 ```
 
 ```python
@@ -131,40 +136,42 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 
-# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
-# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
-N_JOBS=24
-classifiers = { 
-    'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
-                                      param_grid={'n_neighbors': [2, 4, 6, 8]}, 
+def get_classifiers(random_seed=42):
+    # From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+    # Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
+    classifiers = { 
+        #'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
+        #                                  param_grid={'n_neighbors': [2, 4, 6, 8]}, 
+        #                                  refit=True, cv=5, n_jobs=N_JOBS),
+        'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=random_seed, class_weight='balanced'), 
+                                      param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
                                       refit=True, cv=5, n_jobs=N_JOBS),
-    'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
-                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
-                                  refit=True, cv=5, n_jobs=N_JOBS),
-    'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
-                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
-                                              'n_estimators': [6, 8, 10, 12, 14], 
-                                              'max_features': [1, 2, 3]},
-                                  refit=True, cv=5, n_jobs=N_JOBS),
-    'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
-                                        param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
-                                                    'penalty': ['none', 'l2']},
-                                        refit=True, cv=5, n_jobs=N_JOBS),
-    'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
-                               #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
-                               param_grid={'C': [1e-3, 1e-2, 1e-1, 1]},
-                               refit=True, cv=5, n_jobs=N_JOBS),
-    'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
-                            #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
-                            param_grid={'C': [1e-3, 1e-2, 1e-1, 1]},
-                            refit=True, cv=5, n_jobs=N_JOBS),
-    'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
-                                   param_grid={'alpha': [1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
-                                               'hidden_layer_sizes': [(50,50,50), (100,)],
-                                               'activation': ['relu'],
-                                               'learning_rate': ['constant']},
-                                   refit=True, cv=5, n_jobs=N_JOBS)
-    }
+        'Random Forest': GridSearchCV(RandomForestClassifier(random_state=random_seed, class_weight='balanced'), 
+                                      param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
+                                                  'n_estimators': [6, 8, 10, 12, 14], 
+                                                  'max_features': [1, 2, 3]},
+                                      refit=True, cv=5, n_jobs=N_JOBS),
+        'Logistic Regression': GridSearchCV(LogisticRegression(max_iter=1000, random_state=random_seed, class_weight='balanced'),
+                                            param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                        'penalty': ['none', 'l2']},
+                                            refit=True, cv=5, n_jobs=N_JOBS),
+        'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=random_seed, class_weight='balanced'),
+                                   #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                                   param_grid={'C': [1e-2, 1e-1, 1]},
+                                   refit=True, cv=5, n_jobs=N_JOBS),
+        'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=random_seed, class_weight='balanced'),
+                                #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                                param_grid={'C': [1e-2, 1e-1, 1]},
+                                refit=True, cv=5, n_jobs=N_JOBS),
+        'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=random_seed),
+                                       param_grid={'alpha': [1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                   'hidden_layer_sizes': [(50,50,50), (100,)],
+                                                   'activation': ['relu'],
+                                                   'learning_rate': ['constant']},
+                                       refit=True, cv=5, n_jobs=N_JOBS)
+        }
+    
+    return classifiers
 ```
 
 ```python
@@ -192,82 +199,95 @@ def remap_df(df_sklearn):
 df_clf_results = pd.DataFrame(columns=['Classifier', 'Date', 'Crop type', 'Prec.', 'Recall', 
                                        'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
-# Add an extra month to the date range at each iteration in the loop
-year = 2018
-for i in range(7, 24, 1):
-    month = (i % 12) + 1
-    if month == 1:
-        year += 1
-        
-    end_date = f'{year}-{month:02}-01'
-        
-    print(f"\n\n#########################################")
-    print(f"# Dataset from 2018-07-01 to {end_date} #")
-    print(f"#########################################\n")
-    df_sklearn = get_sklearn_df(polygons_year=2019, 
-                                satellite_dates=slice('2018-07-01', f'{end_date}'), 
-                                fields='all', 
-                                satellite='all', 
-                                polarization='all',
-                                crop_type='all',
-                                netcdf_path=netcdf_path)
-    
-    df_sklearn_remapped, class_names = remap_df(df_sklearn)
-    
-    # Get values as numpy array
-    array = df_sklearn_remapped.values
-    X = np.float32(array[:,5:])  # The features 
-    y = np.int8(array[:,4])  # The column 'afgkode'
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, shuffle=True, random_state=RANDOM_SEED)
-    
-    # TODO: Also calculate uncertainties - ie. use multiple random seeds.
-    #       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
-    #       See following on how to format pandas dataframe to get the uncertainties into the df
-    #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
-    
-    for name, clf in classifiers.items():
-        # Evaluate classifier
-        print("-------------------------------------------------------------------------------")
-        print(f"Evaluating classifier: {name}")
-        clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True,
-                                                                           plot_conf_matrix=False, print_classification_report=True)      
-        print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
+for random_seed in range(10):
+    print(f"################################## RANDOM SEED IS SET TO {random_seed:2d} ##################################") 
+    # Seed the random generators
+    random.seed(random_seed)
+    np.random.seed(random_seed)
+    os.environ['PYTHONHASHSEED'] = str(random_seed)
 
-        # Save results for individual crops in df
-        df_results = pd.DataFrame(results_report).transpose()  
-        for crop_type in class_names:
-            # Get values
-            prec = df_results.loc[crop_type, 'precision']
-            recall = df_results.loc[crop_type, 'recall']
-            f1 = df_results.loc[crop_type, 'f1-score']
-            samples = df_results.loc[crop_type, 'support']
-            acc = None
+    # Get classifiers
+    classifiers = get_classifiers(random_seed)
+    
+    # Add an extra month to the date range at each iteration in the loop
+    year = 2018
+    #for i in range(7, 24, 1):
+    for i in range(7, 9, 1):
+        month = (i % 12) + 1
+        if month == 1:
+            year += 1
+
+        end_date = f'{year}-{month:02}-01'
+
+        print(f"\n\n#########################################")
+        print(f"# Dataset from 2018-07-01 to {end_date} #")
+        print(f"#########################################\n")
+        df_sklearn = get_sklearn_df(polygons_year=2019, 
+                                    satellite_dates=slice('2018-07-01', f'{end_date}'), 
+                                    fields='all', 
+                                    satellite='all', 
+                                    polarization='all',
+                                    crop_type='all',
+                                    netcdf_path=netcdf_path)
+
+        df_sklearn_remapped, class_names = remap_df(df_sklearn)
+
+        # Get values as numpy array
+        array = df_sklearn_remapped.values
+        X = np.float32(array[:,5:])  # The features 
+        y = np.int8(array[:,4])  # The column 'afgkode'
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, shuffle=True, 
+                                                            random_state=random_seed)
+
+        # TODO: Also calculate uncertainties - ie. use multiple random seeds.
+        #       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
+        #       See following on how to format pandas dataframe to get the uncertainties into the df
+        #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
+
+        for name, clf in classifiers.items():
+            # Evaluate classifier
+            print("-------------------------------------------------------------------------------")
+            print(f"Evaluating classifier: {name}")
+            clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
+                                                                                feature_scale=True, plot_conf_matrix=False, 
+                                                                                print_classification_report=False)      
+            print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
+
+            # Save results for individual crops in df
+            df_results = pd.DataFrame(results_report).transpose()  
+            for crop_type in class_names:
+                # Get values
+                prec = df_results.loc[crop_type, 'precision']
+                recall = df_results.loc[crop_type, 'recall']
+                f1 = df_results.loc[crop_type, 'f1-score']
+                samples = df_results.loc[crop_type, 'support']
+                acc = None
+
+                # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+                df_clf_results.loc[-1] = [name, end_date, crop_type, prec, recall, f1, acc, samples, random_seed]
+                df_clf_results.index = df_clf_results.index + 1  # shifting index
+                df_clf_results = df_clf_results.sort_index()  # sorting by index
+
+            # Save overall results
+            prec = df_results.loc['weighted avg', 'precision']
+            recall = df_results.loc['weighted avg', 'recall']
+            f1 = df_results.loc['weighted avg', 'f1-score']
+            acc = df_results.loc['accuracy', 'f1-score']
+            samples = df_results.loc['weighted avg', 'support']
 
             # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
-            df_clf_results.loc[-1] = [name, end_date, crop_type, prec, recall, f1, acc, samples, RANDOM_SEED]
+            df_clf_results.loc[-1] = [name, end_date, 'Overall', prec, recall, f1, acc, samples, random_seed]
             df_clf_results.index = df_clf_results.index + 1  # shifting index
             df_clf_results = df_clf_results.sort_index()  # sorting by index
-        
-        # Save overall results
-        prec = df_results.loc['weighted avg', 'precision']
-        recall = df_results.loc['weighted avg', 'recall']
-        f1 = df_results.loc['weighted avg', 'f1-score']
-        acc = df_results.loc['accuracy', 'f1-score']
-        samples = df_results.loc['weighted avg', 'support']
-        
-        # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
-        df_clf_results.loc[-1] = [name, end_date, 'Overall', prec, recall, f1, acc, samples, RANDOM_SEED]
-        df_clf_results.index = df_clf_results.index + 1  # shifting index
-        df_clf_results = df_clf_results.sort_index()  # sorting by index
     
-# Save df with results to disk
-save_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
-df_clf_results.to_pickle(save_path)
+            # Save df with results to disk
+            save_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
+            df_clf_results.to_pickle(save_path)
 ```
 
 ```python
 # Load the df with results from saved file
-load_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
+load_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results_single_random_seed.pkl'
 df_clf_results = pd.read_pickle(load_path)
 ```
 
@@ -281,11 +301,16 @@ ax.set_xlabel('')
 ax.set_ylim(0, 1)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
+    
+save_path = PROJ_PATH / 'reports' / 'figures' / 'ClassifierDuringSeason.pdf'
+fig = ax.get_figure()
+fig.tight_layout()
+fig.savefig(save_path)
 ```
 
 ```python
 # Select classifier to plot
-df_crop = df_clf_results[df_clf_results['Classifier'] == 'Decision Tree']
+df_crop = df_clf_results[df_clf_results['Classifier'] == 'RBF SVM']
 
 # Drop the 'Overall' results and only use the individual crop types
 df_crop = df_crop[df_crop['Crop type'] != 'Overall']
@@ -305,8 +330,13 @@ ax.set_ylim(0, 1)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
     
-ax.legend(bbox_to_anchor=(1.05, 0.95), loc=2, borderaxespad=0.)
+ax.legend(bbox_to_anchor=(1.04, 1.0), loc=2, borderaxespad=0.)
 #ax.legend(loc='center right', bbox_to_anchor=(1.25, 0.5), ncol=1)
+
+save_path = PROJ_PATH / 'reports' / 'figures' / 'ClassifierDuringSeasonCrop.pdf'
+fig = ax.get_figure()
+fig.tight_layout()
+fig.savefig(save_path)
 ```
 
 ```python
