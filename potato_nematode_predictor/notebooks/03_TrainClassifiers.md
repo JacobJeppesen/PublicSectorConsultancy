@@ -155,40 +155,48 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 
-# From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
-# Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
-N_JOBS=24
-classifiers = { 
-    'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
-                                      param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
+def get_classifiers(random_seed=42):
+    # From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
+    # Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
+    N_JOBS=4
+    classifiers = { 
+        #'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
+        #                                  param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
+        #                                  refit=True, cv=5, n_jobs=N_JOBS),
+        'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                      param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
                                       refit=True, cv=5, n_jobs=N_JOBS),
-    'Decision Tree': GridSearchCV(DecisionTreeClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
-                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16]}, 
-                                  refit=True, cv=5, n_jobs=N_JOBS),
-    'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
-                                  param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
-                                              'n_estimators': [6, 8, 10, 12, 14], 
-                                              'max_features': [1, 2, 3]},
-                                  refit=True, cv=5, n_jobs=N_JOBS),
-    'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
-                                        param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
-                                                    'penalty': ['none', 'l2']},
-                                        refit=True, cv=5, n_jobs=N_JOBS),
-    'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
-                               #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
-                               param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
-                               refit=True, cv=5, n_jobs=N_JOBS),
-    'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
-                            #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
-                            param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
-                            refit=True, cv=5, n_jobs=N_JOBS),
-    'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
-                                   param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3],
-                                               'hidden_layer_sizes': [(50,50,50), (100, 100, 100), (100,)],
-                                               'activation': ['tanh', 'relu'],
-                                               'learning_rate': ['constant','adaptive']},
-                                   refit=True, cv=5, n_jobs=N_JOBS)
-    }
+        'Random Forest': GridSearchCV(RandomForestClassifier(random_state=RANDOM_SEED, class_weight='balanced'), 
+                                      param_grid={'max_depth': [2, 4, 6, 8, 10, 12, 14, 16], 
+                                                  'n_estimators': [6, 8, 10, 12, 14], 
+                                                  'max_features': [1, 2, 3]},
+                                      refit=True, cv=5, n_jobs=N_JOBS),
+        'Logistic Regression': GridSearchCV(LogisticRegression(random_state=RANDOM_SEED, class_weight='balanced'),
+                                            param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2],
+                                                        'penalty': ['none', 'l2']},
+                                            refit=True, cv=5, n_jobs=N_JOBS),
+        'Linear SVM': GridSearchCV(SVC(kernel='linear', random_state=RANDOM_SEED, class_weight='balanced'),
+                                   #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                                   param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                                   refit=True, cv=5, n_jobs=N_JOBS),
+        'RBF SVM': GridSearchCV(SVC(kernel='rbf', random_state=RANDOM_SEED, class_weight='balanced'),
+                                #param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2]},
+                                param_grid={'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1]},
+                                refit=True, cv=5, n_jobs=N_JOBS),
+        'Neural Network': GridSearchCV(MLPClassifier(max_iter=1000, random_state=RANDOM_SEED),
+                                       param_grid={'alpha': [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3],
+                                                   'hidden_layer_sizes': [(50,50,50), (100, 100, 100), (100,)],
+                                                   'activation': ['tanh', 'relu'],
+                                                   'learning_rate': ['constant','adaptive']},
+                                       refit=True, cv=5, n_jobs=N_JOBS)
+        }
+    
+    return classifiers
+```
+
+```python
+df_clf_results = pd.DataFrame(columns=['Classifier', 'Crop type', 'Prec.', 'Recall', 
+                                       'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
 clf_trained_dict = {}
 report_dict = {}
@@ -198,18 +206,73 @@ cm_dict = {}
 #       Create df (with cols [Clf_name, Random_seed, Acc., Prec., Recall, F1-score]) and loop over random seeds
 #       See following on how to format pandas dataframe to get the uncertainties into the df
 #       https://stackoverflow.com/questions/46584736/pandas-change-between-mean-std-and-plus-minus-notations
+for random_seed in range(2):
+    print(f"\n\n################################## RANDOM SEED IS SET TO {random_seed:2d} ##################################") 
+    # Seed the random generators
+    random.seed(random_seed)
+    np.random.seed(random_seed)
+    os.environ['PYTHONHASHSEED'] = str(random_seed)
+    
+    # Get the train and test sets with the specified random_seed
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, shuffle=True, random_state=random_seed)
+    
+    # Get the classifiers
+    classifiers = get_classifiers(random_seed)
+    
+    for name, clf in classifiers.items():
+        # Evaluate classifier
+        print("-------------------------------------------------------------------------------")
+        print(f"Evaluating classifier: {name}")
+        clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
+                                                                            feature_scale=True, plot_conf_matrix=False,
+                                                                            print_classification_report=False)      
+        print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
 
-for name, clf in classifiers.items():
-    # Evaluate classifier
-    print("-------------------------------------------------------------------------------")
-    print(f"Evaluating classifier: {name}")
-    clf_trained, _, _, results_report, cnf_matrix = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True)      
-    print(f"The best parameters are {clf_trained.best_params_} with a score of {clf_trained.best_score_:2f}")
+        # Save results in dicts
+        clf_trained_dict[f'{name}_random_seed_{random_seed:02}'] = clf_trained
+        report_dict[f'{name}_random_seed_{random_seed:02}'] = results_report
+        cm_dict[f'{name}_random_seed_{random_seed:02}'] = cnf_matrix
+        
+        # Save results for individual crops in df
+        df_results = pd.DataFrame(results_report).transpose()  
+        for crop_type in class_names:
+            # Get values
+            prec = df_results.loc[crop_type, 'precision']
+            recall = df_results.loc[crop_type, 'recall']
+            f1 = df_results.loc[crop_type, 'f1-score']
+            samples = df_results.loc[crop_type, 'support']
+            acc = None
 
-    # Save results in dicts
-    clf_trained_dict[name] = clf_trained
-    report_dict[name] = results_report
-    cm_dict[name] = cnf_matrix
+            # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+            df_clf_results.loc[-1] = [name, crop_type, prec, recall, f1, acc, samples, random_seed]
+            df_clf_results.index = df_clf_results.index + 1  # shifting index
+            df_clf_results = df_clf_results.sort_index()  # sorting by index
+
+        # Save overall results
+        prec = df_results.loc['weighted avg', 'precision']
+        recall = df_results.loc['weighted avg', 'recall']
+        f1 = df_results.loc['weighted avg', 'f1-score']
+        acc = df_results.loc['accuracy', 'f1-score']
+        samples = df_results.loc['weighted avg', 'support']
+
+        # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+        df_clf_results.loc[-1] = [name, 'Overall', prec, recall, f1, acc, samples, random_seed]
+        df_clf_results.index = df_clf_results.index + 1  # shifting index
+        df_clf_results = df_clf_results.sort_index()  # sorting by index
+
+        # Save df with results to disk
+        save_path = PROJ_PATH / 'notebooks' / '03_TrainClassifiers_results.pkl'
+        df_clf_results.to_pickle(save_path)
+```
+
+```python
+# Load the df with results from saved file
+load_path = PROJ_PATH / 'notebooks' / '03_TrainClassifiers_results.pkl'
+df_clf_results = pd.read_pickle(load_path)
+```
+
+```python
+df_clf_results.head(5)
 ```
 
 ```python
