@@ -200,7 +200,7 @@ df_clf_results = pd.DataFrame(columns=['Classifier', 'Date', 'Crop type', 'Prec.
                                        'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
 for random_seed in range(10):
-    print(f"################################## RANDOM SEED IS SET TO {random_seed:2d} ##################################") 
+    print(f"\n\n################################## RANDOM SEED IS SET TO {random_seed:2d} ##################################") 
     # Seed the random generators
     random.seed(random_seed)
     np.random.seed(random_seed)
@@ -211,15 +211,14 @@ for random_seed in range(10):
     
     # Add an extra month to the date range at each iteration in the loop
     year = 2018
-    #for i in range(7, 24, 1):
-    for i in range(7, 9, 1):
+    for i in range(7, 24, 1):
         month = (i % 12) + 1
         if month == 1:
             year += 1
 
         end_date = f'{year}-{month:02}-01'
 
-        print(f"\n\n#########################################")
+        print(f"\n#########################################")
         print(f"# Dataset from 2018-07-01 to {end_date} #")
         print(f"#########################################\n")
         df_sklearn = get_sklearn_df(polygons_year=2019, 
@@ -287,18 +286,20 @@ for random_seed in range(10):
 
 ```python
 # Load the df with results from saved file
-load_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results_single_random_seed.pkl'
+load_path = PROJ_PATH / 'notebooks' / '04_ClassifyDuringSeason_results.pkl'
 df_clf_results = pd.read_pickle(load_path)
 ```
 
 ```python
 # If you loop over random seeds, the confidence interval can be made just by setting ci='std'
 df_overall = df_clf_results[df_clf_results['Crop type'] == 'Overall'].astype({'Accuracy': 'float64'})
-ax = sns.lineplot(x="Date", y="Accuracy", hue='Classifier', data=df_overall.sort_index(ascending=False), markers=True, ci=None)
-#ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+
+# Plot
+plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
+ax = sns.lineplot(x="Date", y="Accuracy", hue='Classifier', ci='sd', data=df_overall.sort_index(ascending=False))
 ax.set_ylabel('Test accuracy')
 ax.set_xlabel('')
-ax.set_ylim(0, 1)
+#ax.set_ylim(0, 1) # NOTE: Remember to use this when saving figure
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
     
@@ -309,12 +310,28 @@ fig.savefig(save_path)
 ```
 
 ```python
+df_overall[df_overall['Classifier']=='Decision Tree']
+```
+
+```python
+df_overall.groupby(['Classifier', 'Date'])['Accuracy'].mean().to_frame()
+
+# NOTE: Take a look at below on how to get min and max values
+# See https://stackoverflow.com/a/46501773/12045808
+#df = (df.assign(Data_Value=df['Data_Value'].abs())
+#       .groupby(['Day'])['Data_Value'].agg([('Min' , 'min'), ('Max', 'max')])
+#       .add_prefix('Day'))
+```
+
+```python
 # Select classifier to plot
-df_crop = df_clf_results[df_clf_results['Classifier'] == 'RBF SVM']
+df_crop = df_clf_results[df_clf_results['Classifier'] == 'Decision Tree']
 
 # Drop the 'Overall' results and only use the individual crop types
 df_crop = df_crop[df_crop['Crop type'] != 'Overall']
 
+#Plot
+plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
 # Define markers 
 # Note: Markers are not working in lineplots (see https://github.com/mwaskom/seaborn/issues/1513#issuecomment-480261748)
 filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
@@ -323,7 +340,7 @@ filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
 # and
 # https://seaborn.pydata.org/generated/seaborn.lineplot.html
 
-ax = sns.lineplot(x="Date", y="F1-Score", hue='Crop type', data=df_crop.sort_index(ascending=False), ci=None)
+ax = sns.lineplot(x="Date", y="F1-Score", hue='Crop type', data=df_crop.sort_index(ascending=False), ci='sd')
 ax.set_ylabel('F1-score')
 ax.set_xlabel('')
 ax.set_ylim(0, 1)
