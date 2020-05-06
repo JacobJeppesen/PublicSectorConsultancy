@@ -242,7 +242,7 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=s
         Z = df.to_numpy()
 
         # Plot the surface.
-        surf = axs[i].plot_surface(X, Y, Z, cmap=cm.coolwarm,
+        surf = axs[i].plot_surface(X, Y, Z, cmap=cm.coolwarm, vmin=vmin, vmax=vmax,
                                linewidth=0, antialiased=False)
         
         # Set title 
@@ -328,7 +328,7 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
         else:
             raise ValueError("Polarization not supporten (must be VV, VH, or VV-VH)")
 
-        sns.heatmap(df, ax=axs[i], vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
+        sns.heatmap(df, ax=axs[i], linewidths=0, linecolor=None, vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
 
     fig.show()
 

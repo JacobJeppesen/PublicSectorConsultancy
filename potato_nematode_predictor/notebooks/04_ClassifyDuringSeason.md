@@ -80,7 +80,7 @@ df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr', 'pass_mod
 df = df.dropna()
 ```
 
-```python
+```python jupyter={"outputs_hidden": true}
 """
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
@@ -195,7 +195,7 @@ def remap_df(df_sklearn):
     return df_sklearn_remapped, class_names
 ```
 
-```python
+```python jupyter={"outputs_hidden": true}
 df_clf_results = pd.DataFrame(columns=['Classifier', 'Date', 'Crop type', 'Prec.', 'Recall', 
                                        'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
@@ -293,13 +293,15 @@ df_clf_results = pd.read_pickle(load_path)
 ```python
 # If you loop over random seeds, the confidence interval can be made just by setting ci='std'
 df_overall = df_clf_results[df_clf_results['Crop type'] == 'Overall'].astype({'Accuracy': 'float64'})
+df_overall = df_overall[df_overall['Date'] != '2019-12-01']  # Made an error (2019-11-01 is actually the last date)
+df_overall['Accuracy'] = df_overall['Accuracy'] * 100
 
 # Plot
-plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
+#plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
 ax = sns.lineplot(x="Date", y="Accuracy", hue='Classifier', ci='sd', data=df_overall.sort_index(ascending=False))
-ax.set_ylabel('Test accuracy')
+ax.set_ylabel('Overall accuracy [%]')
 ax.set_xlabel('')
-#ax.set_ylim(0, 1) # NOTE: Remember to use this when saving figure
+ax.set_ylim(0, 100) # NOTE: Remember to use this when saving figure
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
     
@@ -326,12 +328,14 @@ df_overall.groupby(['Classifier', 'Date'])['Accuracy'].mean().to_frame()
 ```python
 # Select classifier to plot
 df_crop = df_clf_results[df_clf_results['Classifier'] == 'RBF SVM']
+df_crop = df_crop[df_crop['Date'] != '2019-12-01']  # Made an error (2019-11-01 is actually the last date)
+df_crop['F1-Score'] = df_crop['F1-Score'] * 100
 
 # Drop the 'Overall' results and only use the individual crop types
 df_crop = df_crop[df_crop['Crop type'] != 'Overall']
 
 #Plot
-plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
+#plt.figure(figsize=(20,8)) # NOTE: Remember to out-comment this when saving figure
 # Define markers 
 # Note: Markers are not working in lineplots (see https://github.com/mwaskom/seaborn/issues/1513#issuecomment-480261748)
 filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
@@ -341,9 +345,9 @@ filled_markers = ('o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D')
 # https://seaborn.pydata.org/generated/seaborn.lineplot.html
 
 ax = sns.lineplot(x="Date", y="F1-Score", hue='Crop type', data=df_crop.sort_index(ascending=False), ci='sd')
-ax.set_ylabel('F1-score')
+ax.set_ylabel('F1-score [%]')
 ax.set_xlabel('')
-ax.set_ylim(0, 1)
+ax.set_ylim(0, 100)
 for tick in ax.get_xticklabels():
     tick.set_rotation(90)
     

@@ -158,7 +158,7 @@ from sklearn.neural_network import MLPClassifier
 def get_classifiers(random_seed=42):
     # From https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
     # Note: GaussianClassifier does not work (maybe requires too much training - kernel restarts in jupyter)
-    N_JOBS=4
+    N_JOBS=24
     classifiers = { 
         #'Nearest Neighbors': GridSearchCV(KNeighborsClassifier(), 
         #                                  param_grid={'n_neighbors': [2, 3, 4, 5, 6, 7, 8]}, 
