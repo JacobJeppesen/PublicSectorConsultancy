@@ -325,7 +325,7 @@ df_overall.groupby(['Classifier', 'Date'])['Accuracy'].mean().to_frame()
 
 ```python
 # Select classifier to plot
-df_crop = df_clf_results[df_clf_results['Classifier'] == 'Decision Tree']
+df_crop = df_clf_results[df_clf_results['Classifier'] == 'RBF SVM']
 
 # Drop the 'Overall' results and only use the individual crop types
 df_crop = df_crop[df_crop['Crop type'] != 'Overall']
