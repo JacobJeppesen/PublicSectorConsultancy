@@ -186,7 +186,8 @@ df.loc[df['Crop type'] == 'Vinterraps', 'Crop type'] = 'Rapeseed'
 
 plt.figure(figsize=(13.5, 4.5))
 plt.xticks(rotation=90, horizontalalignment='center')
-ax = sns.lineplot(x='date', y='stats_mean', hue='Crop type', data=df.sort_index(ascending=False), ci='sd')
+ax = sns.lineplot(x='date', y='stats_mean', hue='Crop type', hue_order=['Forestry', 'Maize', 'Rapeseed'], 
+                  data=df.sort_index(ascending=False), ci='sd')
 ax.set_ylabel('Mean VH backscattering [dB]')
 ax.set_xlabel('')
 #ax.set_ylim(-29, -9)
@@ -223,7 +224,8 @@ df.loc[df['Crop type'] == 'Vinterraps', 'Crop type'] = 'Rapeseed'
 
 plt.figure(figsize=(13.5, 4.5))
 plt.xticks(rotation=90, horizontalalignment='center')
-ax = sns.lineplot(x='date', y='stats_mean', hue='Crop type', data=df.sort_index(ascending=False), ci='sd')
+ax = sns.lineplot(x='date', y='stats_mean', hue='Crop type', hue_order=['Forestry', 'Maize', 'Rapeseed'], 
+                  data=df.sort_index(ascending=False), ci='sd')
 ax.set_ylabel('Mean VH backscattering [dB]')
 ax.set_xlabel('')
 #ax.set_ylim(-29, -9)

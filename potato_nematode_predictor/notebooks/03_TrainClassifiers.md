@@ -335,6 +335,7 @@ save_confusion_matrix_fig(cm_dict['RBF SVM_random_seed_02'], classes=class_names
 
 ```python
 # Key numbers for paper:
+total_size_processed_sentinel1 = 294  # [GB]
 total_fields_2019 = 587288  
 total_area_2019 = 2660101  # [ha]
 total_fields_2019_crop_type = 289810
