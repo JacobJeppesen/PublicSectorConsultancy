@@ -42,7 +42,7 @@ CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
 ALL_TOUCHED = False
-BUFFER_SIZE = -20  # Unit is meterJ
+BUFFER_SIZE = 0#-20  # Unit is meter
 ```
 
 ---
@@ -103,6 +103,10 @@ if True:  # Set it to True if you want to find the results
         n = 60 
         crop_types = df['afgroede'].value_counts()[:n].index.tolist()
         print("### Analyzing " + df_name + " ###")
+        # Find the total number of fields
+        num_fields = df.shape[0]
+        sum_area = df['imk_areal'].sum()
+        print("There are a total of " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha)")
         for crop_type in crop_types:
             num_fields = df[df['afgroede'] == crop_type].shape[0]
             afgkode = df[df['afgroede'] == crop_type].iloc[0]['afgkode']
@@ -133,14 +137,14 @@ def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhve
     for potato_type in potato_types:  
         df_crop = df[df['afgroede'] == potato_type]
         if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
-            df_crop = df_crop.sample(n=max_fields_per_type)  
+            df_crop = df_crop.sample(n=max_fields_per_type, random_state=1)  # random_state was added after dsd paper
         df_extracted = df_extracted.append(df_crop)
     
     if not only_potato:
         for crop_type in crop_types:  
             df_crop = df[df['afgroede'] == crop_type]
             if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
-                df_crop = df_crop.sample(n=max_fields_per_type)  
+                df_crop = df_crop.sample(n=max_fields_per_type, random_state=1)  # random_state was added after dsd paper
             df_extracted = df_extracted.append(df_crop)
     df = df_extracted
     

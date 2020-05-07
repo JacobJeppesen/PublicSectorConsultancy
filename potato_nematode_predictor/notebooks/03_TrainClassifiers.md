@@ -334,5 +334,91 @@ save_confusion_matrix_fig(cm_dict['RBF SVM_random_seed_02'], classes=class_names
 ```
 
 ```python
+# Key numbers for paper:
+total_fields_2019 = 587288  
+total_area_2019 = 2660101  # [ha]
+total_fields_2019_crop_type = 289810
+total_area_2019_crop_type = 1720987  # [ha]
+crop_type_fields_coverage = total_fields_2019_crop_type / total_fields_2019 * 100  # = 49.34%
+print(f'num_fields percentage: {crop_type_fields_coverage}')
+crop_type_area_coverage = total_area_2019_crop_type / total_area_2019 * 100  # = 64.69%
+print(f'area percentage: {crop_type_area_coverage}')
 
+first_date = '2018-07-08'  # From xarray
+last_date = '2019-10-31'  # From xarray
+num_dates = 77  # Every 6th day
+num_features = 231  # 77*3
+total_dataset_size = len(y)  # = 44333  # After buffering and NaN fields have been discarded
+print(f'dataset size (after buffering and NaN fields have been discarded): {total_dataset_size}')
+train_set_size = len(y_train)  # = 31033  # After buffering and NaN fields have been discarded
+print(f'train_set size (after buffering and NaN fields have been discarded): {train_set_size}')
+test_set_size = len(y_test)  # = 13300  # After buffering and NaN fields have been discarded
+print(f'test_size size (after buffering and NaN fields have been discarded): {test_set_size}')
+
+
+# From notebook 01_CreateDataset.ipynb
+
+# First we find total number of fields in 2019
+### Analyzing FieldPolygons2019 ###
+# There are a total of 587288 fields (total area = 2660101 ha)
+
+# Then we find the number of fields with no max. fields per type and 0m buffering
+### Analyzing FieldPolygons2019 (after buffering of 0m) ###
+#There are a total of 289810 fields (total area = 1720987 ha)
+#There are 588 fields (total area = 4877 ha) of type: Kartofler, andre
+#There are 465 fields (total area = 3966 ha) of type: Kartofler, lægge- (certificerede)
+#There are 758 fields (total area = 4144 ha) of type: Kartofler, lægge- (egen opformering)
+#There are 2185 fields (total area = 7930 ha) of type: Kartofler, spise-
+#There are 4649 fields (total area = 35727 ha) of type: Kartofler, stivelses-
+#There are 53590 fields (total area = 90351 ha) of type: Permanent græs, normalt udbytte
+#There are 1370 fields (total area = 2828 ha) of type: Pil
+#There are 28073 fields (total area = 186116 ha) of type: Silomajs
+#There are 2205 fields (total area = 4671 ha) of type: Skovdrift, alm.
+#There are 13553 fields (total area = 99950 ha) of type: Vinterbyg
+#There are 65629 fields (total area = 536264 ha) of type: Vinterhvede
+#There are 18413 fields (total area = 164197 ha) of type: Vinterraps
+#There are 6468 fields (total area = 35022 ha) of type: Vinterrug
+#There are 80080 fields (total area = 483420 ha) of type: Vårbyg
+#There are 9561 fields (total area = 48932 ha) of type: Vårhavre
+#There are 2223 fields (total area = 12585 ha) of type: Vårhvede
+
+# Then we find number of fields with max. fields per type of 5000 and 0m buffering
+### Analyzing FieldPolygons2019 (after buffering of 0m) ###
+#There are a total of 54443 fields (total area = 322566 ha)
+#There are 588 fields (total area = 4877 ha) of type: Kartofler, andre
+#There are 465 fields (total area = 3966 ha) of type: Kartofler, lægge- (certificerede)
+#There are 758 fields (total area = 4144 ha) of type: Kartofler, lægge- (egen opformering)
+#There are 2185 fields (total area = 7930 ha) of type: Kartofler, spise-
+#There are 4649 fields (total area = 35727 ha) of type: Kartofler, stivelses-
+#There are 5000 fields (total area = 8380 ha) of type: Permanent græs, normalt udbytte
+#There are 1370 fields (total area = 2828 ha) of type: Pil
+#There are 5000 fields (total area = 33401 ha) of type: Silomajs
+#There are 2205 fields (total area = 4671 ha) of type: Skovdrift, alm.
+#There are 5000 fields (total area = 36357 ha) of type: Vinterbyg
+#There are 5000 fields (total area = 41134 ha) of type: Vinterhvede
+#There are 5000 fields (total area = 44321 ha) of type: Vinterraps
+#There are 5000 fields (total area = 27063 ha) of type: Vinterrug
+#There are 5000 fields (total area = 29849 ha) of type: Vårbyg
+#There are 5000 fields (total area = 25326 ha) of type: Vårhavre
+#There are 2223 fields (total area = 12585 ha) of type: Vårhvede
+
+# Then we find the number of fields with max. fields per type of 5000 and -20m buffering
+### Analyzing FieldPolygons2019 (after buffering of -20m) ###
+#There are a total of 52769 fields (total area = 330207 ha)
+#There are 581 fields (total area = 4872 ha) of type: Kartofler, andre
+#There are 460 fields (total area = 3962 ha) of type: Kartofler, lægge- (certificerede)
+#There are 713 fields (total area = 4095 ha) of type: Kartofler, lægge- (egen opformering)
+#There are 1687 fields (total area = 7762 ha) of type: Kartofler, spise-
+#There are 4610 fields (total area = 35695 ha) of type: Kartofler, stivelses-
+#There are 5000 fields (total area = 9656 ha) of type: Permanent græs, normalt udbytte
+#There are 1018 fields (total area = 2681 ha) of type: Pil
+#There are 5000 fields (total area = 33461 ha) of type: Silomajs
+#There are 1587 fields (total area = 4501 ha) of type: Skovdrift, alm.
+#There are 5000 fields (total area = 38106 ha) of type: Vinterbyg
+#There are 5000 fields (total area = 41364 ha) of type: Vinterhvede
+#There are 5000 fields (total area = 45349 ha) of type: Vinterraps
+#There are 5000 fields (total area = 27955 ha) of type: Vinterrug
+#There are 5000 fields (total area = 31377 ha) of type: Vårbyg
+#There are 5000 fields (total area = 26824 ha) of type: Vårhavre
+#There are 2113 fields (total area = 12539 ha) of type: Vårhvede
 ```
