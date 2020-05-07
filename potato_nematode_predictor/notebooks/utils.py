@@ -383,7 +383,7 @@ def plot_confusion_matrix(cm, classes):
     plt.xlabel('Predicted label')
     plt.tight_layout(w_pad=8)
         
-def save_confusion_matrix_fig(cm, classes, save_path=None, normalized=False):
+def save_confusion_matrix_fig(cm, classes, save_path=None, normalized=False, fontsize=11):
     # Modified form of https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
     """
     This function prints and plots the confusion matrix.
@@ -393,7 +393,7 @@ def save_confusion_matrix_fig(cm, classes, save_path=None, normalized=False):
     if len(classes) < 5:
         plt.figure(figsize=(7, 7))
     else: 
-        plt.figure(figsize=(9, 9))
+        plt.figure(figsize=(8, 8))
 
     # Plot non-normalized confusion matrix
     if normalized:
@@ -402,8 +402,8 @@ def save_confusion_matrix_fig(cm, classes, save_path=None, normalized=False):
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
     #plt.title('Confusion matrix')
     tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=90)
-    plt.yticks(tick_marks, classes)
+    plt.xticks(tick_marks, classes, rotation=90, fontsize=fontsize)
+    plt.yticks(tick_marks, classes, fontsize=fontsize)
 
     fmt = '.2f' if normalized else 'd'
     thresh = cm.max() / 2.
@@ -412,8 +412,8 @@ def save_confusion_matrix_fig(cm, classes, save_path=None, normalized=False):
                  horizontalalignment="center",
                  color="white" if cm[i, j] > thresh else "black")
 
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
+    plt.ylabel('True label', fontsize=fontsize)
+    plt.xlabel('Predicted label', fontsize=fontsize)
     plt.tight_layout(w_pad=8)
     if save_path:
         if normalized:

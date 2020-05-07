@@ -194,7 +194,7 @@ def get_classifiers(random_seed=42):
     return classifiers
 ```
 
-```python
+```python jupyter={"outputs_hidden": true}
 df_clf_results = pd.DataFrame(columns=['Classifier', 'Crop type', 'Prec.', 'Recall', 
                                        'F1-Score', 'Accuracy', 'Samples', 'Random seed'])
 
@@ -276,51 +276,50 @@ df_clf_results.head(5)
 ```
 
 ```python
-# Create df with results from classifiers and create latex table with them
-df_clf_results = pd.DataFrame(columns=['Name', 'Acc.', 'Prec.', 'Recall', 'F1-Score'])
-for name, results_report in report_dict.items():
-    df_results = pd.DataFrame(report_dict[name]).transpose()  
-    prec = df_results.loc['weighted avg', 'precision']
-    recall = df_results.loc['weighted avg', 'recall']
-    f1 = df_results.loc['weighted avg', 'f1-score']
-    acc = df_results.loc['accuracy', 'f1-score']
-    
-    # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
-    df_clf_results.loc[-1] = [name, acc, prec, recall, f1]
-    df_clf_results.index = df_clf_results.index + 1  # shifting index
-    df_clf_results = df_clf_results.sort_index()  # sorting by index
-    
-# Print df in latex format
 pd.options.display.float_format = '{:.2f}'.format  # Show 2 decimals
-print(df_clf_results.sort_index(ascending=False).to_latex(index=False))  
+df_clf_results_latex = pd.DataFrame(columns=['', 'Acc.', 'Prec.', 'F1-Score'])
+
+for classifier in df_clf_results['Classifier'].unique():
+    stats_vals = [classifier]
+    for metric in ['Accuracy', 'Prec.', 'F1-Score']:
+        df_clf_results_stats = df_clf_results.copy()
+        df_clf_results_stats = df_clf_results_stats[df_clf_results_stats['Crop type'] == 'Overall']
+        df_clf_results_stats = df_clf_results_stats[df_clf_results_stats['Classifier'] == classifier]
+        mean = np.mean(df_clf_results_stats[metric]*100)
+        std = np.std(df_clf_results_stats[metric]*100)
+        stats_vals.append(f'${mean:.2f}\pm{std:.2f}$')
+        
+    # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+    df_clf_results_latex.loc[-1] = stats_vals
+    df_clf_results_latex.index = df_clf_results_latex.index + 1  # shifting index
+    df_clf_results_latex = df_clf_results_latex.sort_index()  # sorting by index
+print(df_clf_results_latex.to_latex(index=False, escape=False, column_format='lcccc'))  
 ```
 
 ```python
-# Show performance on different classes with best performing classifier
-# Get classfication report as pandas df
-df_results = pd.DataFrame(report_dict['RBF SVM']).transpose()  
-
-# Round the values to 2 decimals
-df_results = df_results.astype({'support': 'int32'}).round(2) 
-
-# Remove samples from 'macro avg' and 'weighed avg'
-df_results.loc[df_results.index == 'accuracy', 'precision'] = ''  
-df_results.loc[df_results.index == 'accuracy', 'recall'] = ''  
-df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
-
-# Rename the support column to 'samples'
-df_results = df_results.rename(columns={'precision': 'Prec.',
-                                        'recall': 'Recall',
-                                        'f1-score': 'F1-score',
-                                        'support': 'Samples'},
-                               index={'accuracy': 'Overall acc.',
-                                      'macro avg': 'Macro avg.',
-                                      'weighted avg': 'Weighted avg.'})
-
-
-# Print df in latex format (I normally add a /midrule above 'Macro avg.' and delete 'Overall acc.')
 pd.options.display.float_format = '{:.2f}'.format  # Show 2 decimals
-print(df_results.to_latex(index=True))  
+df_clf_results_latex = pd.DataFrame(columns=['', 'Prec.', 'Recall', 'F1-Score', 'Samples'])
+
+for crop_type in df_clf_results['Crop type'].unique():
+    if crop_type == 'Overall':
+        stats_vals = ['Weighted avg.']
+    else:
+        stats_vals = [crop_type]
+    for metric in ['Prec.', 'Recall', 'F1-Score']:
+        df_clf_results_stats = df_clf_results.copy()
+        df_clf_results_stats = df_clf_results_stats[df_clf_results_stats['Crop type'] == crop_type]
+        df_clf_results_stats = df_clf_results_stats[df_clf_results_stats['Classifier'] == 'RBF SVM']
+        mean = np.mean(df_clf_results_stats[metric]*100)
+        std = np.std(df_clf_results_stats[metric]*100)
+        stats_vals.append(f'${mean:.2f}\pm{std:.2f}$')
+    samples = df_clf_results_stats['Samples'].values[0]
+    stats_vals.append(int(samples))
+    # Insert row in df (https://stackoverflow.com/a/24284680/12045808)
+    df_clf_results_latex.loc[-1] = stats_vals
+    df_clf_results_latex.index = df_clf_results_latex.index + 1  # shifting index
+    df_clf_results_latex = df_clf_results_latex.sort_index()  # sorting by index
+    
+print(df_clf_results_latex.to_latex(index=False, escape=False, column_format='lcccc'))  
 ```
 
 ```python
@@ -330,8 +329,8 @@ plot_path = PROJ_PATH / 'reports' / 'figures' / 'conf_matrices' / plot_name
 if not plot_path.parent.exists():
     plot_path.parent.mkdir()
     
-save_confusion_matrix_fig(cm_dict['RBF SVM'], classes=class_names, save_path=plot_path)
-save_confusion_matrix_fig(cm_dict['RBF SVM'], classes=class_names, save_path=plot_path, normalized=True)
+save_confusion_matrix_fig(cm_dict['RBF SVM_random_seed_02'], classes=class_names, save_path=plot_path, fontsize=13)
+save_confusion_matrix_fig(cm_dict['RBF SVM_random_seed_02'], classes=class_names, save_path=plot_path, normalized=True, fontsize=13)
 ```
 
 ```python
