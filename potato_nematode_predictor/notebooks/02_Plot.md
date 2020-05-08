@@ -251,7 +251,7 @@ def plot_and_save_waterfall(crop_type, crop_name, save_path, fontsize=12):
     df = get_plot_df(polygons_year=2019, 
                      satellite_dates=slice('2018-07-01', '2019-11-01'), 
                      fields='all',#range(100), 
-                     satellite='S1A', 
+                     satellite='all', 
                      crop_type=crop_type,
                      polarization='VH',
                      netcdf_path=netcdf_path)
@@ -363,7 +363,7 @@ def plot_and_save_heatmap(crop_type, crop_name, save_path, fontsize=12):
     df = get_plot_df(polygons_year=2019, 
                      satellite_dates=slice('2018-07-01', '2019-11-01'), 
                      fields='all',#range(100), 
-                     satellite='S1A', 
+                     satellite='all', 
                      crop_type=crop_type,
                      polarization='VH',
                      netcdf_path=netcdf_path)
@@ -401,7 +401,7 @@ def plot_and_save_heatmap(crop_type, crop_name, save_path, fontsize=12):
     cbar.set_label('Mean VH backscattering [dB]', labelpad=10, fontsize=fontsize)
     
     # Customize the x axis (dates)
-    ticks_divider = 3
+    ticks_divider = 15
     xticks = range(1, num_dates+1)[::ticks_divider]
     xticklabels = dates[::ticks_divider]
     ax.set_xticks(xticks)
