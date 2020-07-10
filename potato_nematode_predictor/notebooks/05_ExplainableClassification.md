@@ -1,9 +1,7 @@
 https://eli5.readthedocs.io/en/latest/_modules/eli5/sklearn/explain_weights.html
 https://eli5.readthedocs.io/en/latest/tutorials/xgboost-titanic.html#explaining-predictions
 
-Prøv at tage, f. eks., Vinterraps mod alle andre (dvs. binær klassifikation), og se hvilke datoer der gør at vinterraps er let at få øje på.
-
-Prøv også at kigge på https://eli5.readthedocs.io/en/latest/blackbox/permutation_importance.html.
+Also take a look at https://eli5.readthedocs.io/en/latest/blackbox/permutation_importance.html.
 
 ```python
 import os
@@ -13,11 +11,13 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
+import dabl
 sns.set_style('ticks')
 
 from pathlib import Path
 from tqdm.autonotebook import tqdm
 from sklearn.model_selection import train_test_split         # Split data into train and test set
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
 from utils import evaluate_classifier, get_sklearn_df 
 
@@ -90,10 +90,10 @@ df = df.dropna()
 
 ```python
 df_sklearn = get_sklearn_df(polygons_year=2019, 
-                            satellite_dates=slice('2018-01-01', '2019-12-31'), 
+                            satellite_dates=slice('2019-04-01', '2019-07-01'), 
                             fields='all', 
-                            satellite='S1B', 
-                            polarization='all',
+                            satellite='S1A', 
+                            polarization='VH',
                             crop_type='all',
                             netcdf_path=netcdf_path)
     
@@ -123,15 +123,105 @@ X = np.float32(array[:,5:])  # The features
 # Define the target (dependent) variable as labels.
 y = np.int8(array[:,4])  # The column 'afgkode'
 
+# Drop every n'th feature
+n = 4
+X = X[:, ::n]
+
 # Create a train/test split using 30% test size.
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
+```
 
+```python
+df_plot = df_sklearn_remapped.drop(['field_id', 'afgkode', 'afgroede', 'Label ID'], axis=1)
+df_plot
+```
+
+```python
+g = sns.PairGrid(df_plot.sample(1000), hue='Crop type')
+g.map_diag(sns.kdeplot)
+g.map_lower(plt.scatter)
+g.map_upper(sns.kdeplot)
+```
+
+```python pycharm={"name": "#%%\n"} jupyter={"outputs_hidden": false}
+# For some reason, it randomly chosses between regression and classification. Run it multiple times to hit classification.
+dabl.plot(X_train, y_train)
+```
+
+```python
+fc = dabl.SimpleClassifier(random_state=RANDOM_SEED)
+fc.fit(X_train, y_train)
+```
+
+```python
+dabl.explain(fc, X_test, y_test)
+```
+
+```python pycharm={"name": "#%%\n"} jupyter={"outputs_hidden": false}
 # Instantiate and evaluate classifier
 from sklearn.linear_model import LogisticRegression          
 clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
-clf_trained, _, accuracy_test, results_report = evaluate_classifier(clf, X_train, X_test, y_train, y_test, class_names, 
-                                                                    feature_scale=True, plot_conf_matrix=False,
-                                                                    print_classification_report=True)
+clf_trained, _, accuracy_test, results_report = evaluate_classifier(
+    clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, plot_conf_matrix=False,
+    print_classification_report=True)
+```
+
+```python
+X_train_df = pd.DataFrame(X_train)
+X_train_df.head(5)
+```
+
+```python
+X_train_df.describe()
+```
+
+```python
+X_train_df.corr()
+```
+
+```python
+with sns.plotting_context(rc={"axes.labelsize":16}):  # Temporarily change the font size for seaborn plots
+    # Select the first 8 columns 
+    df_cancer_plot_features = X_train_df.iloc[:, :]
+    
+    # Create pairgrid with hue set to show the two different diagnoses
+    g = sns.PairGrid(df_cancer_plot_features, palette="Set2")
+    g = g.map_offdiag(plt.scatter, edgecolor="w", s=40)
+
+    # Show histograms of the data on the diagonal and plot the figure
+    g = g.map_diag(plt.hist, edgecolor="w")
+    plt.show()
+```
+
+```python
+model = LDA(n_components = 8)
+X_lda = model.fit_transform(X_test, y_test)
+print('Explained variation per principal component (2D): {}'.format(model.explained_variance_ratio_))
+principalDf = pd.DataFrame(data = X_lda)
+finalDf = pd.concat([principalDf, df_sklearn_remapped[['Crop type']]], axis = 1)
+finalDf = finalDf.loc[finalDf['Crop type'].isin(crops)]
+```
+
+```python
+principalDf
+```
+
+```python
+g = sns.PairGrid(principalDf.sample(1000))
+g.map_diag(sns.kdeplot)
+g.map_lower(sns.kdeplot)
+g.map_upper(plt.scatter)
+```
+
+```python
+g = sns.PairGrid(pd.DataFrame(X_test).sample(1000))
+g.map_diag(sns.kdeplot)
+g.map_lower(sns.kdeplot)
+g.map_upper(plt.scatter)
+```
+
+```python
+
 ```
 
 ```python
@@ -151,7 +241,8 @@ df_results.loc[df_results.index == 'accuracy', 'recall'] = ''
 df_results.loc[df_results.index == 'accuracy', 'recall'] = ''  
 
 # The number of samples ('support') was incorrectly parsed in to dataframe
-df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
+df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[
+    df_results.index == 'macro avg', 'support'].values
 
 # Print df in latex format (I normally add a /midrule above accuracy manually)
 print(df_results.to_latex(index=True))  
@@ -160,7 +251,8 @@ print(df_results.to_latex(index=True))
 ```python
 df_results.loc[df_results.index == 'accuracy', 'precision'] = ''
 df_results.loc[df_results.index == 'accuracy', 'recall'] = ''
-df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[df_results.index == 'macro avg', 'support'].values
+df_results.loc[df_results.index == 'accuracy', 'support'] = df_results.loc[
+    df_results.index == 'macro avg', 'support'].values
 df_results
 ```
 

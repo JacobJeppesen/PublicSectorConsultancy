@@ -153,6 +153,8 @@ def get_sklearn_df(polygons_year=2019,
     
     if polarization == 'all':
         polarizations = ['VV', 'VH', 'VV-VH']
+    else:
+        polarizations = [polarization]
 
     # Create the df format to be used by scikit-learn
     for i, polarization_val in enumerate(polarizations):
