@@ -4,6 +4,11 @@ https://eli5.readthedocs.io/en/latest/tutorials/xgboost-titanic.html#explaining-
 Also take a look at https://eli5.readthedocs.io/en/latest/blackbox/permutation_importance.html.
 
 ```python
+!pip install shap
+!pip install lime
+```
+
+```python
 import os
 import random
 import numpy as np
@@ -11,7 +16,10 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
-import dabl
+# import dabl
+import shap
+import lime
+import lime.lime_tabular
 sns.set_style('ticks')
 
 from pathlib import Path
@@ -60,6 +68,21 @@ mapping_dict_crop_types = {
     'Skovdrift, alm.': 'Forest'
 }
 
+# Crop types to be used for explainability
+explainability_crop_types = {
+    'Potato': True,
+    'Spring barley': False,
+    'Winter barley': False,
+    'Spring wheat': True,
+    'Winter wheat': True,
+    'Winter rye': False,
+    'Spring oat': False,
+    'Maize': False,
+    'Rapeseed': True,
+    'Permanent grass': False,
+    'Willow': False,
+    'Forest': True
+}
 
 # Set seed for random generators
 RANDOM_SEED = 42
@@ -81,19 +104,11 @@ ds.close()
 ```
 
 ```python
-# Convert the xarray dataset to pandas dataframe
-df = ds.to_dataframe()
-df = df.reset_index()  # Removes MultiIndex
-df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr', 'pass_mode', 'relative_orbit'])
-df = df.dropna()
-```
-
-```python
 df_sklearn = get_sklearn_df(polygons_year=2019, 
-                            satellite_dates=slice('2019-04-01', '2019-07-01'), 
+                            satellite_dates=slice('2019-03-01', '2019-10-01'), 
                             fields='all', 
                             satellite='S1A', 
-                            polarization='VH',
+                            polarization='all',
                             crop_type='all',
                             netcdf_path=netcdf_path)
     
@@ -104,15 +119,22 @@ mapping_dict = {}
 class_names = [] 
 i = 0
 for key, value in mapping_dict_crop_types.items():
-    df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value 
+    df_sklearn_remapped.loc[df_sklearn_remapped['afgroede'] == key, 'Crop type'] = value
     if value not in class_names:
         class_names.append(value)
         mapping_dict[value] = i
         i += 1
 
 for key, value in mapping_dict.items():
-    df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value 
-#print(f"Crop types: {class_names}")
+    df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value
+print(f"Crop types: {class_names}")
+
+# Drop the columns not ud for explainability
+for key, value in explainability_crop_types.items():
+    if not value:
+        df_sklearn_remapped = df_sklearn_remapped[df_sklearn_remapped['Crop type'] != key]
+print(f"Crop types used for explainability:  {df_sklearn_remapped['Crop type'].unique()}")
+class_names = df_sklearn_remapped['Crop type'].unique()
 
 # Get values as numpy array
 array = df_sklearn_remapped.values
@@ -124,8 +146,8 @@ X = np.float32(array[:,5:])  # The features
 y = np.int8(array[:,4])  # The column 'afgkode'
 
 # Drop every n'th feature
-n = 4
-X = X[:, ::n]
+#n = 6
+#X = X[:, ::n]
 
 # Create a train/test split using 30% test size.
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
@@ -137,33 +159,143 @@ df_plot
 ```
 
 ```python
-g = sns.PairGrid(df_plot.sample(1000), hue='Crop type')
+df_plot['Crop type'].value_counts()
+```
+
+```python
+df_plot_balanced = pd.DataFrame(columns=df_plot.columns)
+for crop_type in class_names:
+    df_plot_balanced = pd.concat([df_plot_balanced, df_plot[df_plot['Crop type'] == crop_type].sample(100)])
+df_plot_balanced['Crop type'].value_counts()
+```
+
+```python
+g = sns.PairGrid(df_plot_balanced, hue='Crop type')
 g.map_diag(sns.kdeplot)
 g.map_lower(plt.scatter)
 g.map_upper(sns.kdeplot)
-```
-
-```python pycharm={"name": "#%%\n"} jupyter={"outputs_hidden": false}
-# For some reason, it randomly chosses between regression and classification. Run it multiple times to hit classification.
-dabl.plot(X_train, y_train)
+g.add_legend()
 ```
 
 ```python
-fc = dabl.SimpleClassifier(random_state=RANDOM_SEED)
-fc.fit(X_train, y_train)
+plt.figure(figsize=(20, 20))
+sns.heatmap(df_plot.corr(), annot=True)
 ```
 
 ```python
-dabl.explain(fc, X_test, y_test)
-```
-
-```python pycharm={"name": "#%%\n"} jupyter={"outputs_hidden": false}
 # Instantiate and evaluate classifier
 from sklearn.linear_model import LogisticRegression          
 clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
-clf_trained, _, accuracy_test, results_report = evaluate_classifier(
-    clf, X_train, X_test, y_train, y_test, class_names, feature_scale=True, plot_conf_matrix=False,
+clf_trained, _, accuracy_test, results_report, conf_matrix = evaluate_classifier(
+    clf, X_train, X_test, y_train, y_test, class_names, feature_scale=False, plot_conf_matrix=True,
     print_classification_report=True)
+```
+
+```python
+# https://slundberg.github.io/shap/notebooks/linear_explainer/Sentiment%20Analysis%20with%20Logistic%20Regression.html
+shap.initjs()
+logistic_regression_explainer = shap.LinearExplainer(clf_trained, X_test, feature_perturbation='interventional')
+logistic_regression_shap_values = logistic_regression_explainer.shap_values(X_test)
+shap.summary_plot(logistic_regression_shap_values, X_test, feature_names=df_plot.columns[1:], class_names=class_names)
+```
+
+```python
+print(y_test[0:20])
+```
+
+```python
+sample_number = 5
+num_features = len(df_plot.columns[1:])
+explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=df_plot.columns[1:], class_names=class_names, discretize_continuous=False)
+explanation = explainer.explain_instance(X_test[sample_number], clf_trained.predict_proba, num_features=num_features, top_labels=1)
+print(f"True label: {list(mapping_dict.keys())[y_test[sample_number]]}")  # Slightly hacky way to get the correct crop type
+explanation.show_in_notebook(show_table=True, show_all=True)
+```
+
+```python
+lda_components = 4
+lda_model = LDA(n_components = lda_components)
+X_train_lda = lda_model.fit_transform(X_train, y_train)  # Find the transformation parameters from the training data
+X_test_lda = lda_model.transform(X_test)  # Transform the test data
+
+# For the plotting parts, we use both training and test data
+X_lda = lda_model.transform(X)  # Perform transform on entire dataset
+print(f"Explained variation per principal component: {lda_model.explained_variance_ratio_}")
+print(f"Shape of training features: {np.shape(X_lda)}")
+print(f"Shape of test features: {np.shape(X_lda)}")
+df_lda = pd.DataFrame(data = X_lda)
+df_lda['LabelID'] = y
+for key, value in mapping_dict.items():
+    df_lda.loc[df_lda['LabelID'] == value, 'Crop type'] = key
+df_lda = df_lda.drop(columns=['LabelID'])
+df_lda
+```
+
+```python
+df_plot_lda_balanced = pd.DataFrame(columns=df_lda.columns)
+for crop_type in class_names:
+    df_plot_lda_balanced = pd.concat([df_plot_lda_balanced, df_lda[df_lda['Crop type'] == crop_type].sample(100)])
+df_plot_lda_balanced['Crop type'].value_counts()
+```
+
+```python
+g = sns.PairGrid(df_plot_lda_balanced, hue='Crop type')
+g.map_diag(sns.kdeplot)
+g.map_lower(plt.scatter)
+g.map_upper(sns.kdeplot)
+g.add_legend()
+```
+
+```python
+plt.figure(figsize=(5, 5))
+sns.heatmap(df_lda.corr(), annot=True)
+```
+
+```python
+# Instantiate and evaluate classifier
+from sklearn.linear_model import LogisticRegression          
+clf = LogisticRegression(solver='lbfgs', multi_class='auto', n_jobs=32, max_iter=1000)
+clf_trained_lda, _, accuracy_test, results_report, conf_matrix = evaluate_classifier(
+    clf, X_train_lda, X_test_lda, y_train, y_test, class_names, feature_scale=False, plot_conf_matrix=True,
+    print_classification_report=True)
+```
+
+```python
+# https://slundberg.github.io/shap/notebooks/linear_explainer/Sentiment%20Analysis%20with%20Logistic%20Regression.html
+shap.initjs()
+logistic_regression_explainer = shap.LinearExplainer(clf_trained_lda, X_test_lda, feature_perturbation='interventional')
+logistic_regression_shap_values = logistic_regression_explainer.shap_values(X_test_lda)
+shap.summary_plot(logistic_regression_shap_values, X_test_lda_samples)
+```
+
+```python
+print(y_test[:20])
+```
+
+```python
+sample_number = 61 
+explainer = lime.lime_tabular.LimeTabularExplainer(X_train_lda, feature_names=range(lda_components), class_names=class_names, discretize_continuous=True)
+explanation = explainer.explain_instance(X_test_lda[sample_number], clf_trained_lda.predict_proba, num_features=4, top_labels=5)
+print(f"True label: {list(mapping_dict.keys())[y_test[sample_number]]}")  # Slightly hacky way to get the correct crop type
+explanation.show_in_notebook(show_table=True, show_all=True)
+```
+
+```python
+
+```
+
+```python jupyter={"outputs_hidden": false} pycharm={"name": "#%%\n"}
+# For some reason, it randomly chosses between regression and classification. Run it multiple times to hit classification.
+# dabl.plot(X_train, y_train)
+```
+
+```python
+# fc = dabl.SimpleClassifier(random_state=RANDOM_SEED)
+# fc.fit(X_train, y_train)
+```
+
+```python
+# dabl.explain(fc, X_test, y_test)
 ```
 
 ```python
