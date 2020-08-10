@@ -105,10 +105,10 @@ ds.close()
 
 ```python
 df_sklearn = get_sklearn_df(polygons_year=2019, 
-                            satellite_dates=slice('2019-03-01', '2019-10-01'), 
+                            satellite_dates=slice('2019-03-01', '2019-09-01'), 
                             fields='all', 
                             satellite='S1A', 
-                            polarization='all',
+                            polarization='dual',
                             crop_type='all',
                             netcdf_path=netcdf_path)
     
@@ -136,6 +136,21 @@ for key, value in explainability_crop_types.items():
 print(f"Crop types used for explainability:  {df_sklearn_remapped['Crop type'].unique()}")
 class_names = df_sklearn_remapped['Crop type'].unique()
 
+# Re-arrange columns 
+cols_rearranged = list(df_sklearn_remapped.columns[:5]) + list(sorted(df_sklearn_remapped.columns[5:]))
+df_sklearn_remapped = df_sklearn_remapped[cols_rearranged]
+
+# Keep every n'th date (hardcoded to use VV and VH polarizations!!)
+n = 6 
+num_cols = len(df_sklearn_remapped.columns)
+keep_cols_index = [0, 1, 2, 3, 4] + list(range(5, num_cols, n+1)) + list(range(6, num_cols, n+1))  # meta-data + VV polarizations + VH polarizations
+print(keep_cols_index)
+df_sklearn_remapped = df_sklearn_remapped.iloc[:, keep_cols_index]
+
+# Re-arrange columns 
+cols_rearranged = list(df_sklearn_remapped.columns[:5]) + list(sorted(df_sklearn_remapped.columns[5:]))
+df_sklearn_remapped = df_sklearn_remapped[cols_rearranged]
+
 # Get values as numpy array
 array = df_sklearn_remapped.values
 
@@ -144,10 +159,6 @@ X = np.float32(array[:,5:])  # The features
 
 # Define the target (dependent) variable as labels.
 y = np.int8(array[:,4])  # The column 'afgkode'
-
-# Drop every n'th feature
-#n = 6
-#X = X[:, ::n]
 
 # Create a train/test split using 30% test size.
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=RANDOM_SEED)
@@ -178,8 +189,8 @@ g.add_legend()
 ```
 
 ```python
-plt.figure(figsize=(20, 20))
-sns.heatmap(df_plot.corr(), annot=True)
+plt.figure(figsize=(10, 10))
+sns.heatmap(df_plot.corr(), annot=True, vmin=-1, vmax=1)
 ```
 
 ```python
@@ -203,7 +214,7 @@ shap.summary_plot(logistic_regression_shap_values, X_test, feature_names=df_plot
 print(y_test[0:20])
 ```
 
-```python
+```python jupyter={"outputs_hidden": true}
 sample_number = 5
 num_features = len(df_plot.columns[1:])
 explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=df_plot.columns[1:], class_names=class_names, discretize_continuous=False)
@@ -248,7 +259,7 @@ g.add_legend()
 
 ```python
 plt.figure(figsize=(5, 5))
-sns.heatmap(df_lda.corr(), annot=True)
+sns.heatmap(df_lda.corr(), annot=True, vmin=-1, vmax=1)
 ```
 
 ```python
@@ -265,7 +276,7 @@ clf_trained_lda, _, accuracy_test, results_report, conf_matrix = evaluate_classi
 shap.initjs()
 logistic_regression_explainer = shap.LinearExplainer(clf_trained_lda, X_test_lda, feature_perturbation='interventional')
 logistic_regression_shap_values = logistic_regression_explainer.shap_values(X_test_lda)
-shap.summary_plot(logistic_regression_shap_values, X_test_lda_samples)
+shap.summary_plot(logistic_regression_shap_values, X_test_lda, class_names=class_names)
 ```
 
 ```python

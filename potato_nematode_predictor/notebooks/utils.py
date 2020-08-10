@@ -153,6 +153,8 @@ def get_sklearn_df(polygons_year=2019,
     
     if polarization == 'all':
         polarizations = ['VV', 'VH', 'VV-VH']
+    elif polarization == 'dual':
+        polarizations = ['VV', 'VH']
     else:
         polarizations = [polarization]
 
