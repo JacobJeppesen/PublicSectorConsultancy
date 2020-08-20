@@ -9,10 +9,12 @@ import geopandas
 import os
 import rasterio
 import sys
-import fiona
+import multiprocessing
+import itertools
 import numpy as np
 import xarray as xr
 import pandas as pd
+from rasterstats import zonal_stats
 from pathlib import Path
 from zipfile import ZipFile
 from tqdm.autonotebook import tqdm
@@ -32,12 +34,13 @@ xr.set_options(display_style="html")
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
 
-# Define which field polygons should be used for analysis (2017 to 2019 seem to follow the same metadata format)
+# Define which field polygons should be used for analysis (2017 to 2019 seem to follow 
+# the same metadata format)
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Define global flags
-CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 'Vårhavre', 'Silomajs', 'Vinterraps', 
-              'Permanent græs, normalt udbytte', 'Pil', 'Skovdrift, alm.']  
+CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 'Vårhavre', 'Silomajs', 
+              'Vinterraps', 'Permanent græs, normalt udbytte', 'Pil', 'Skovdrift, alm.']  
 
 ONLY_POTATO = False
 MULTI_PROC_ZONAL_STATS = False
@@ -96,7 +99,8 @@ if True:  # Set it to True if you want to find the results
         shp_path = list((PROJ_PATH / 'data' / 'raw' / df_name).glob('**/*.shp'))[0]
         df = geopandas.read_file(str(shp_path))   
         
-        # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
+        # Change all column names to be lower-case to make the naming consistent 
+        # across years (https://stackoverflow.com/a/36362607/12045808)
         df.columns = map(str.lower, df.columns)
 
         # Find most common crop types
@@ -106,7 +110,7 @@ if True:  # Set it to True if you want to find the results
         # Find the total number of fields
         num_fields = df.shape[0]
         sum_area = df['imk_areal'].sum()
-        print("There are a total of " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha)")
+        print(f"There are a total of {str(num_fields)} fields (total area = {str(int(sum_area))} ha)")
         for crop_type in crop_types:
             num_fields = df[df['afgroede'] == crop_type].shape[0]
             afgkode = df[df['afgroede'] == crop_type].iloc[0]['afgkode']
@@ -123,12 +127,14 @@ def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhve
     df = geopandas.read_file(str(shp_path))
     df = df.dropna()
     
-    # Change all column names to be lower-case to make the naming consistent across years (https://stackoverflow.com/a/36362607/12045808)
+    # Change all column names to be lower-case to make the naming consistent 
+    # across years (https://stackoverflow.com/a/36362607/12045808)
     df.columns = map(str.lower, df.columns)
     
-    # Buffer the geometries to take imprecise coregistration into consideration (important for zonal statistics)
+    # Buffer the geometries to take imprecise coregistration into 
+    # consideration (important for zonal statistics)
     df['geometry'] = df['geometry'].values.buffer(BUFFER_SIZE)
-    df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (ie. fields with zero area after buffering)
+    df = df[~df['geometry'].is_empty]  # Filter away all empty polygons (after buffering)
     
     # Extract crop types 
     max_fields_per_type = 5000
@@ -137,29 +143,32 @@ def buffer_and_analyze_fields(shp_path, only_potato=True, crop_types=['Vinterhve
     for potato_type in potato_types:  
         df_crop = df[df['afgroede'] == potato_type]
         if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
-            df_crop = df_crop.sample(n=max_fields_per_type, random_state=1)  # random_state was added after dsd paper
+            # Sample fields (note that random_state was added after dsd paper)
+            df_crop = df_crop.sample(n=max_fields_per_type, random_state=1) 
         df_extracted = df_extracted.append(df_crop)
     
     if not only_potato:
         for crop_type in crop_types:  
             df_crop = df[df['afgroede'] == crop_type]
             if df_crop.shape[0] > max_fields_per_type:  # Get a maximum of n fields for each crop type
-                df_crop = df_crop.sample(n=max_fields_per_type, random_state=1)  # random_state was added after dsd paper
+                # Sample fields (note that random_state was added after dsd paper)
+                df_crop = df_crop.sample(n=max_fields_per_type, random_state=1)  
             df_extracted = df_extracted.append(df_crop)
     df = df_extracted
     
     # Find the total number of fields
     num_fields = df.shape[0]
     sum_area = df['imk_areal'].sum()
-    print("### Analyzing " + df_name + " (after buffering of " + str(BUFFER_SIZE) + "m) ###")
-    print("There are a total of " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha)")
+    print(f"### Analyzing {df_name} (after buffering of {str(BUFFER_SIZE)}m) ###")
+    print(f"There are a total of {str(num_fields)} fields (total area = {str(int(sum_area))} ha)")
 
-    # Find the different crop types, count the number of fields for each type, and calculate total area for each type
+    # Find the different crop types, count the number of fields for each type, and calculate total 
+    # area for each type
     extracted_crop_types = df['afgroede'].unique()
     for crop_type in sorted(extracted_crop_types):
         num_fields = df[df['afgroede'] == crop_type].shape[0]
         sum_area = df[df['afgroede'] == crop_type]['imk_areal'].sum()
-        print("There are " + str(num_fields) + " fields (total area = " + str(int(sum_area)) + " ha) of type: " + crop_type)
+        print(f"There are {str(num_fields)} fields (total area = {str(int(sum_area))} ha) of type: {crop_type}")
 
     print("")
     
@@ -201,6 +210,15 @@ for df_name in FIELD_POLYGONS:
 Calculate zonal statistics for the the fields for the different radar data measurements:
 
 ```python
+def zonal_stats_partial(feats, tif, band):
+    """
+    Wrapper for zonal stats, takes a list of features.
+    Based on https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
+    """
+    return zonal_stats(feats, tif, band=band, all_touched=ALL_TOUCHED, stats=['min', 'max', 'median', 'mean', 'std'], geojson_out=True)
+```
+
+```python
 # We now want to create an xarray dataset based on the dataframe
 tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
 
@@ -210,17 +228,18 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
     
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
-    if netcdf_path.exists():
-    #if not '2019' in df_name:
+    #if netcdf_path.exists():
+    if not '2019' in df_name:
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
         ### HACKY WAY TO DO THIS - IT SHOULD BE DONE INSIDE RASTERSTATSMULTIPROC ###
         # TODO: Figure out how to do this on the pandas df instead of opening features from the shape file
-        #       (ie. implement calc_zonal_stats_multiproc with the use of df - but df cannot be self.df - it must be parsed into the function)
-        with fiona.open(shp_path) as src:
-            features = list(src)
-            crs = src.crs
+        #       (ie. implement calc_zonal_stats_multiproc with the use of df - but df cannot be 
+        #        self.df - it must be parsed into the function)
+        #with fiona.open(shp_path) as src:
+        #    features = list(src)
+        #    crs = src.crs
         ###
         
         df = geopandas.read_file(str(shp_path))
@@ -264,22 +283,42 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
             relative_orbit = tif.stem[24:27]
             
             # Perform zonal statistics 
-            for band in range(1, 4):  # Loop over all polarizations, including cross-polarization (indexed 1 to 3)
-                rasterstatsmulti = RasterstatsMultiProc(df=df, shp=shp_path, tif=tif, band=band, all_touched=ALL_TOUCHED)
+            for band in range(1, 4):  # Loop over all polarizations, indexed 1 to 3 (including VV-VH)
+                rasterstatsmulti = RasterstatsMultiProc(df=df, 
+                                                        shp=shp_path, 
+                                                        tif=tif, 
+                                                        band=band, 
+                                                        all_touched=ALL_TOUCHED)
 
-                if False:
+                if True:
+                    # Based on https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
+                    args_list = []
+                    chunk_size = 256
+                    for i in range(0, len(df), chunk_size):
+                        args_list.append([df.iloc[i:i+chunk_size, :], tif, band])
+                        
+                    n_processes = multiprocessing.cpu_count()
+                    with multiprocessing.Pool(processes=n_processes) as pool:
+                        stats_df_lists = pool.starmap(zonal_stats_partial, args_list)
+                        
+                    stats_df_multiproc = list(itertools.chain(*stats_df_lists))
+                    results_df = geopandas.GeoDataFrame.from_features(stats_df_multiproc)
+                    results_df.crs = df.crs
+                    results_df = results_df[ [ col for col in results_df.columns if col != 'geometry' ] + ['geometry'] ]
+                    
                 #if MULTI_PROC_ZONAL_STATS:
                     # Todo: Parse df to the function and use that instead of features
                     # NOTE: MULTIPROC DOES NOT WORK! IT ONLY CALCULATES VH (IE. BAND 0) EVERY 
                     #       TIME, AND NEVER GET TO VV AND VV-VH (ie. BAND 1 AND 2)
-                    results_df = rasterstatsmulti.calc_zonal_stats_multiproc(features, crs)     
+                    #results_df = rasterstatsmulti.calc_zonal_stats_multiproc(features, crs)     
                 else:
-                    results_df = rasterstatsmulti.calc_zonal_stats(prog_bar=False) 
+                    results_df = rasterstatsmulti.calc_zonal_stats(prog_bar=True) 
                     
                 del rasterstatsmulti
 
                 # Check if the ordering of the field_ids are the same in the xarray dataset and the results_df
-                # (they must be - otherwise the calculated statistics will be assigned to the wrong elements in the statistics arrays)
+                # (they must be - otherwise the calculated statistics will be assigned to the wrong elements 
+                # in the statistics arrays)
                 for i in np.random.randint(low=0, high=num_fields, size=20):
                     ds_field_id = ds.isel(field_id=i)['field_id'].values
                     df_field_id = results_df.iloc[i]['id']
@@ -316,7 +355,8 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
         # Save the dataset
         if not netcdf_path.parent.exists():
             os.makedirs(netcdf_path.parent)
-        ds = ds.sortby('date')  # Sort the dates (they are scrambled due to naming of the tif files starting with 'S1A' and 'S1B')
+        # Sort the dates (they are scrambled due to naming of the tif files starting with 'S1A' and 'S1B')
+        ds = ds.sortby('date')
         ds.to_netcdf(netcdf_path, engine='h5netcdf')
 ```
 

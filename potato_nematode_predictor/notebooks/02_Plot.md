@@ -27,7 +27,7 @@ xr.set_options(display_style="html")
 # The path to the project (so absoute file paths can be used throughout the notebook)
 PROJ_PATH = Path.cwd().parent
 
-# Define which field polygons should be used for analysis (2017 to 2019 seem to follow the same metadata format)
+# Define which field polygons should be used for analysis (2017 to 2019 follow the same metadata format)
 FIELD_POLYGONS = ['FieldPolygons2017', 'FieldPolygons2018', 'FieldPolygons2019']
 
 # Set seed for random generators
@@ -311,7 +311,8 @@ def plot_and_save_waterfall(crop_type, crop_name, save_path, fontsize=12):
         tick.label1.set_fontsize(fontsize) 
 
     # Customize the x axis (dates)
-    ticks_divider = int(np.ceil(num_dates/10))  # If more than 10 dates, skip every second tick, if more than 20 dates, skip every third ...
+    # If >10 dates, skip every second tick, if >20 dates, skip every third ... 
+    ticks_divider = int(np.ceil(num_dates/10))  
     xticks = range(1, num_dates+1)[::ticks_divider]  # Array must be starting at 1
     xticklabels = dates[::ticks_divider]
     ax.set_xticks(xticks)
@@ -326,7 +327,7 @@ def plot_and_save_waterfall(crop_type, crop_name, save_path, fontsize=12):
     # Set viewing distance (important to not cut off labels)
     ax.dist = 11
 
-    # Set labels
+    # Set labels (the spaces are a hacky way to get the labels to be at the correct position)
     ax.set_ylabel('              Field', labelpad=18, fontsize=fontsize)
     ax.set_zlabel('Mean VH backscattering [dB]         ', labelpad=44, fontsize=fontsize)
     
@@ -394,7 +395,8 @@ def plot_and_save_heatmap(crop_type, crop_name, save_path, fontsize=12):
     # Get the min and max values depending on polarization
     vmin, vmax = -25, -10 
 
-    ax = sns.heatmap(df, linewidths=0, linecolor=None, vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm)
+    ax = sns.heatmap(df, linewidths=0, linecolor=None, vmin=vmin, vmax=vmax, yticklabels=False, 
+                     cmap=cm.coolwarm)
     
     # Pad label for cbar (https://stackoverflow.com/questions/52205416/moving-label-of-seaborn-colour-bar)
     cbar = ax.collections[0].colorbar
