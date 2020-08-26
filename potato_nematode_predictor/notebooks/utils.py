@@ -23,90 +23,39 @@ from sklearn.metrics import confusion_matrix                 # Confusion matrix
 from sklearn.metrics import accuracy_score
 
 
-class RasterstatsMultiProc(object):
-    """
-    Inspired by https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
-    """
-    def __init__(self, tif=None, band=1, df=None, shp=None, stats=['min', 'max', 'median', 'mean', 'std'], all_touched=False):
-            self.all_touched = all_touched
-            self.band = band
-            self.df = df
-            self.shp = shp
-            self.stats = stats
-            self.tif = tif
-            
-    def calc_zonal_stats(self, prog_bar=True):
-        gen = gen_zonal_stats(self.df, self.tif, band=self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
-        length = self.df.shape[0]
-        results = []
-        
-        if prog_bar:
-            for result in tqdm(gen, total=length):
-                results.append(result)
-        else:
-            for result in gen:
-                results.append(result)
-            
-        results_df = geopandas.GeoDataFrame.from_features(results)
-        results_df.crs = self.df.crs
-        
-        # Move the 'geometry' column to be the last column (https://stackoverflow.com/a/56479671/12045808)
-        results_df = results_df[ [ col for col in results_df.columns if col != 'geometry' ] + ['geometry'] ]
-        
-        return results_df
-
-    def calc_zonal_stats_multiproc(self, features, crs):
-        # Create a process pool using all cores
-        cores = 8# multiprocessing.cpu_count()
-        with multiprocessing.Pool(cores) as pool:
-            # parallel map
-            results_lists = pool.map(self.zonal_stats_partial, self.chunks(features, cores))
-
-        # flatten to a single list
-        results = list(itertools.chain(*results_lists))
-        assert len(results) == len(features)
-        
-        # Create geodataframe from the results
-        results_df = geopandas.GeoDataFrame.from_features(results, crs=crs)
-        
-        # Move the 'geometry' column to be the last column (https://stackoverflow.com/a/56479671/12045808)
-        results_df = results_df[ [ col for col in results_df.columns if col != 'geometry' ] + ['geometry'] ]
-        
-        return results_df 
-    
-    @staticmethod
-    def chunks(data, n):
-        """Yield successive n-sized chunks from a slice-able iterable."""
-        for i in range(0, len(data), n):
-            yield data[i:i+n]
-
-    def zonal_stats_partial(self, feats):
-        """Wrapper for zonal stats, takes a list of features"""
-        return zonal_stats(feats, self.tif, self.band, all_touched=self.all_touched, stats=self.stats, geojson_out=True)
-
 def get_df(polygons_year=2019, 
            satellite_dates=slice('2019-01-01', '2019-12-31'), 
            fields='all', 
            satellite='all', 
            polarization='all',
-           crop_type='all',
-           netcdf_path=None):
-    # TODO: Perhaps it would be an idea to have field centroids (as lat, lon) to find fields within geographic area
+           crop_type='all'):
+    
     # Load the xarray dataset
-    #netcdf_name = 'FieldPolygons{}_stats'.format(polygons_year)
-    #netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
+    proj_path = Path.cwd().parent
+    netcdf_name = f'FieldPolygons{polygons_year}_stats'
+    netcdf_path = (proj_path / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
     with xr.open_dataset(netcdf_path, engine="h5netcdf") as ds:
-        # Select dates, fields, and polarizations
+        # Select dates and fields
         ds = ds.sel(date=satellite_dates)
         if not fields == 'all':  # Must be 'all' or array of integers (eg. [1, 2, 3, 4]) of field_ids
             ds = ds.isel(field_id=fields) 
-        if not polarization == 'all':  # Must be 'all', 'VV', 'VH', or 'VV-VH'
-            ds = ds.sel(polarization=polarization) 
-
+            
         # Convert ds to dataframe
         df = ds.to_dataframe()
         df = df.reset_index()  # Removes MultiIndex
         df = df.drop(columns=['cvr', 'gb', 'gbanmeldt', 'journalnr', 'marknr'])
+        
+        # Filter out NaN fields (ie. fields where the polygons are not covered by the Sentienl-1 measurements)
+        df = df.dropna()
+        
+        # Filter out fields with too low VV values (e.g., due to artifacts in the image)
+        # Note: The minimum allowed value is chosen manually here
+        invalid_field_ids = df.query('polarization=="VV" and stats_mean<-30')['field_id'].values
+        df = df[~df['field_id'].isin(invalid_field_ids)]  # Removes all polarizations based on field id
+        
+        # Select polarization
+        if not polarization == 'all':  # Must be 'all', 'VV', 'VH', or 'VV-VH'
+            df = df[df['polarization']==polarization]
 
         # Select satellites
         if not satellite == 'all':  # Must be 'all', 'S1A', or 'S1B'
@@ -123,16 +72,14 @@ def get_plot_df(polygons_year=2019,
                 fields='all', 
                 satellite='all', 
                 polarization='all',
-                crop_type='all',
-                netcdf_path=None):
+                crop_type='all'):
     
     df = get_df(polygons_year=polygons_year, 
                 satellite_dates=satellite_dates, 
                 fields=fields, 
                 satellite=satellite, 
                 polarization=polarization,
-                crop_type=crop_type,
-                netcdf_path=netcdf_path)
+                crop_type=crop_type)
     
     # Format the dataframe to work well with Seaborn for plotting
     df['date'] = df['date'].dt.strftime('%Y-%m-%d')
@@ -148,8 +95,7 @@ def get_sklearn_df(polygons_year=2019,
                    fields='all', 
                    satellite='all', 
                    polarization='all',
-                   crop_type='all',
-                   netcdf_path=None):
+                   crop_type='all'):
     
     if polarization == 'all':
         polarizations = ['VV', 'VH', 'VV-VH']
@@ -164,8 +110,7 @@ def get_sklearn_df(polygons_year=2019,
                                  satellite_dates=satellite_dates, 
                                  fields=fields, 
                                  satellite=satellite, 
-                                 polarization=polarization_val,
-                                 netcdf_path=netcdf_path)
+                                 polarization=polarization_val)
 
         # Extract a mapping of field_ids to crop type
         if i == 0:
@@ -190,7 +135,7 @@ def get_sklearn_df(polygons_year=2019,
     return df_sklearn
     
     
-def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=True, netcdf_path=None):
+def plot_waterfall_all_polarizations(polygons_year, crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=True, netcdf_path=None):
     fig, axs = plt.subplots(1, 3, subplot_kw={'projection': '3d'})
     #fig.suptitle(f"Temporal evolution of {crop_type}", fontsize=16)
     fig.set_figheight(8)
@@ -198,13 +143,12 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=s
     
     polarizations = ['VV', 'VH', 'VV-VH']
     for i, polarization in enumerate(polarizations):
-        df = get_plot_df(polygons_year=2019, 
+        df = get_plot_df(polygons_year=polygons_year, 
                          satellite_dates=satellite_dates, 
                          fields='all', 
                          satellite=satellite, 
                          polarization=polarization,
-                         crop_type=crop_type,
-                         netcdf_path=netcdf_path)
+                         crop_type=crop_type)
 
         df = df.dropna()
         
@@ -282,24 +226,23 @@ def plot_waterfall_all_polarizations(crop_type = 'Vinterraps', satellite_dates=s
         axs[i].dist = 11   
 
     fig.tight_layout()
-    fig.show()
+    plt.show()
 
     
-def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=False, netcdf_path=None):
+def plot_heatmap_all_polarizations(polygons_year, crop_type = 'Vinterraps', satellite_dates=slice('2019-01-01', '2019-12-31'), num_fields=128, satellite='all', sort_rows=False):
     fig, axs = plt.subplots(1, 3)
     fig.suptitle(f"Temporal evolution of: {crop_type}", fontsize=16)
-    fig.set_figheight(8)
-    fig.set_figwidth(24) 
+    fig.set_figheight(4)
+    fig.set_figwidth(12) 
     
     polarizations = ['VV', 'VH', 'VV-VH']
     for i, polarization in enumerate(polarizations):
-        df = get_plot_df(polygons_year=2019, 
+        df = get_plot_df(polygons_year=polygons_year, 
                          satellite_dates=satellite_dates, 
                          fields='all', 
                          satellite=satellite, 
                          polarization=polarization,
-                         crop_type=crop_type,
-                         netcdf_path=netcdf_path)
+                         crop_type=crop_type)
 
         # Pivot the df (https://stackoverflow.com/a/37790707/12045808)
         df = df.pivot(index='field_id', columns='date', values='stats_mean')
@@ -334,7 +277,7 @@ def plot_heatmap_all_polarizations(crop_type = 'Vinterraps', satellite_dates=sli
 
         sns.heatmap(df, ax=axs[i], linewidths=0, linecolor=None, vmin=vmin, vmax=vmax, yticklabels=False, cmap=cm.coolwarm, cbar_kws={'label': "{}, stats_mean".format(polarization)})
 
-    fig.show()
+    plt.show()
 
 def plot_confusion_matrix(cm, classes):
     # Modified form of https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html

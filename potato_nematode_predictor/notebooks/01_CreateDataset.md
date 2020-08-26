@@ -11,6 +11,7 @@ import rasterio
 import sys
 import multiprocessing
 import itertools
+import datetime
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -43,9 +44,8 @@ CROP_TYPES = ['Vårbyg',  'Vinterbyg', 'Vårhvede', 'Vinterhvede', 'Vinterrug', 
               'Vinterraps', 'Permanent græs, normalt udbytte', 'Pil', 'Skovdrift, alm.']  
 
 ONLY_POTATO = False
-MULTI_PROC_ZONAL_STATS = False
-ALL_TOUCHED = False
-BUFFER_SIZE = 0#-20  # Unit is meter
+ALL_TOUCHED = False  # For more info: https://pythonhosted.org/rasterstats/manual.html#rasterization-strategy
+BUFFER_SIZE = -20  # Unit is meter
 ```
 
 ---
@@ -104,7 +104,7 @@ if True:  # Set it to True if you want to find the results
         df.columns = map(str.lower, df.columns)
 
         # Find most common crop types
-        n = 60 
+        n = 20 
         crop_types = df['afgroede'].value_counts()[:n].index.tolist()
         print("### Analyzing " + df_name + " ###")
         # Find the total number of fields
@@ -219,30 +219,34 @@ def zonal_stats_partial(feats, tif, band):
 ```
 
 ```python
-# We now want to create an xarray dataset based on the dataframe
-tifs = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
+# Define that paths of all post-processed Sentinel-1 data
+tif_paths = sorted((PROJ_PATH / 'data' / 'raw' / 'Sentinel-1').glob('*.tif'))
 
+# We now want to create an xarray dataset based on the dataframe
 for df_name in FIELD_POLYGONS: # Loop over all field polygon years
-    shp_name = '{}_buffered'.format(df_name)
-    shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
-    
     netcdf_name = df_name + '_stats' 
     netcdf_path = (PROJ_PATH / 'data' / 'processed' / netcdf_name).with_suffix('.nc')
-    #if netcdf_path.exists():
-    if not '2019' in df_name:
+    if netcdf_path.exists():
+    #if not '2019' in df_name:
         print("Zonal statistics have already been calculated for: " + df_name)
     else:
         print("Calculating zonal statistics for: " + df_name)
-        ### HACKY WAY TO DO THIS - IT SHOULD BE DONE INSIDE RASTERSTATSMULTIPROC ###
-        # TODO: Figure out how to do this on the pandas df instead of opening features from the shape file
-        #       (ie. implement calc_zonal_stats_multiproc with the use of df - but df cannot be 
-        #        self.df - it must be parsed into the function)
-        #with fiona.open(shp_path) as src:
-        #    features = list(src)
-        #    crs = src.crs
-        ###
-        
+        # Define the path of the shape-file to be used and load it into geopandas
+        shp_name = '{}_buffered'.format(df_name)
+        shp_path = (PROJ_PATH / 'data' / 'processed' / shp_name / shp_name).with_suffix('.shp')
         df = geopandas.read_file(str(shp_path))
+        
+        # Find the Sentinel-1 files relevant for the specific field polygon set
+        polygon_year = df_name[-4:]
+        start_date = f'{polygon_year}0301' 
+        end_date = f'{polygon_year}1001'
+        tifs = []  # A list of tif file paths to be used for this field polygon set
+        for tif_path in tif_paths:
+            tif_date = tif_path.stem[4:12]
+            if tif_date > start_date and tif_date < end_date:
+                tifs.append(tif_path)
+        
+
         ### FOR DEBUGGING ###
         #df = df.head(200)  
         #features = features[:200]
@@ -284,38 +288,22 @@ for df_name in FIELD_POLYGONS: # Loop over all field polygon years
             
             # Perform zonal statistics 
             for band in range(1, 4):  # Loop over all polarizations, indexed 1 to 3 (including VV-VH)
-                rasterstatsmulti = RasterstatsMultiProc(df=df, 
-                                                        shp=shp_path, 
-                                                        tif=tif, 
-                                                        band=band, 
-                                                        all_touched=ALL_TOUCHED)
-
-                if True:
-                    # Based on https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
-                    args_list = []
-                    chunk_size = 256
-                    for i in range(0, len(df), chunk_size):
-                        args_list.append([df.iloc[i:i+chunk_size, :], tif, band])
-                        
-                    n_processes = multiprocessing.cpu_count()
-                    with multiprocessing.Pool(processes=n_processes) as pool:
-                        stats_df_lists = pool.starmap(zonal_stats_partial, args_list)
-                        
-                    stats_df_multiproc = list(itertools.chain(*stats_df_lists))
-                    results_df = geopandas.GeoDataFrame.from_features(stats_df_multiproc)
-                    results_df.crs = df.crs
-                    results_df = results_df[ [ col for col in results_df.columns if col != 'geometry' ] + ['geometry'] ]
+                # Calculate zonal stats using multiproc
+                # Based on https://github.com/perrygeo/python-rasterstats/blob/master/examples/multiproc.py
+                n_processes = multiprocessing.cpu_count()
+                chunk_size = 256  # Number of fields for each process
+                args_list = []  # Instantiate a list of arguments for the processing
+                for i in range(0, len(df), chunk_size):  # Create chunk_sized arguments
+                    args_list.append([df.iloc[i:i+chunk_size, :], tif, band])
+                with multiprocessing.Pool(processes=n_processes) as pool:  # Calculate the chunks
+                    stats_df_lists = pool.starmap(zonal_stats_partial, args_list)
+                # Combine the results from individual chunks   
+                stats_df_multiproc = list(itertools.chain(*stats_df_lists))  
+                results_df = geopandas.GeoDataFrame.from_features(stats_df_multiproc)  # Create df from the results
+                results_df.crs = df.crs  # Ensure that the dataframe uses the correct CRS
+                # Move 'geometry' column to be the last column
+                results_df = results_df[ [ col for col in results_df.columns if col != 'geometry' ] + ['geometry'] ]  
                     
-                #if MULTI_PROC_ZONAL_STATS:
-                    # Todo: Parse df to the function and use that instead of features
-                    # NOTE: MULTIPROC DOES NOT WORK! IT ONLY CALCULATES VH (IE. BAND 0) EVERY 
-                    #       TIME, AND NEVER GET TO VV AND VV-VH (ie. BAND 1 AND 2)
-                    #results_df = rasterstatsmulti.calc_zonal_stats_multiproc(features, crs)     
-                else:
-                    results_df = rasterstatsmulti.calc_zonal_stats(prog_bar=True) 
-                    
-                del rasterstatsmulti
-
                 # Check if the ordering of the field_ids are the same in the xarray dataset and the results_df
                 # (they must be - otherwise the calculated statistics will be assigned to the wrong elements 
                 # in the statistics arrays)
