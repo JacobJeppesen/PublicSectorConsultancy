@@ -147,7 +147,8 @@ for year in range(2017,2020):
 ```
 
 ```python pycharm={"is_executing": false}
-crop_types = ['Silomajs', 'Vinterraps', 'Skovdrift, alm.']
+#crop_types = ['Silomajs', 'Vinterraps', 'Skovdrift, alm.']
+crop_types = ['Kartofler, stivelses-']
 for crop_type in crop_types:
     for year in range(2017, 2020):
         print(f"Plotting {crop_type} from {year}")
@@ -161,6 +162,7 @@ for crop_type in crop_types:
 
 ```python pycharm={"is_executing": false}
 crop_types = ALL_CROP_TYPES #['Silomajs', 'Vinterraps', 'Skovdrift, alm.']
+crop_types = ['Kartofler, stivelses-']
 for crop_type in crop_types:
     for year in range(2017, 2020):
         print(f"Plotting {crop_type} from {year}")
@@ -488,8 +490,7 @@ def plot_and_save_waterfall(crop_type, crop_name, save_path, fontsize=12):
                      fields='all',#range(100), 
                      satellite='all', 
                      crop_type=crop_type,
-                     polarization='VH',
-                     netcdf_path=netcdf_path)
+                     polarization='VH')
 
     df = df.dropna()
 
@@ -593,6 +594,16 @@ plot_and_save_waterfall('Vinterraps', 'rapeseed', save_path, fontsize=11)
 ```
 
 ```python
+save_path = PROJ_PATH / 'reports' / 'figures' / 'WaterfallPotatoStivelses.pdf'
+plot_and_save_waterfall('Kartofler, stivelses-', 'Kartofler, stivelses-', save_path, fontsize=11)
+```
+
+```python
+save_path = PROJ_PATH / 'reports' / 'figures' / 'WaterfallPotatoSpise.pdf'
+plot_and_save_waterfall('Kartofler, spise-', 'Kartofler, spise-', save_path, fontsize=11)
+```
+
+```python
 def plot_and_save_heatmap(crop_type, crop_name, save_path, fontsize=12):
     fig = plt.figure(figsize=(4, 5))
     
@@ -601,8 +612,7 @@ def plot_and_save_heatmap(crop_type, crop_name, save_path, fontsize=12):
                      fields='all',#range(100), 
                      satellite='all', 
                      crop_type=crop_type,
-                     polarization='VH',
-                     netcdf_path=netcdf_path)
+                     polarization='VH')
 
     # Get the dates (needed later for plotting)
     num_fields = 128
@@ -672,5 +682,11 @@ plot_and_save_heatmap('Vinterraps', 'rapeseed', save_path, fontsize=10)
 ```
 
 ```python
+save_path = PROJ_PATH / 'reports' / 'figures' / 'HeatmapPotatoStivelses.pdf'
+plot_and_save_heatmap('Kartofler, stivelses-', 'Kartofler, stivelses-', save_path, fontsize=10)
+```
 
+```python
+save_path = PROJ_PATH / 'reports' / 'figures' / 'HeatmapPotatoSpise.pdf'
+plot_and_save_heatmap('Kartofler, spise-', 'Kartofler, spise-', save_path, fontsize=10)
 ```
