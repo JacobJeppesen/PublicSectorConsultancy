@@ -6,6 +6,8 @@ Also take a look at https://eli5.readthedocs.io/en/latest/blackbox/permutation_i
 ```python
 !pip install shap
 !pip install lime
+!pip install interpret
+!conda install -y eli5
 ```
 
 ```python
@@ -109,8 +111,7 @@ df_sklearn = get_sklearn_df(polygons_year=2019,
                             fields='all', 
                             satellite='S1A', 
                             polarization='dual',
-                            crop_type='all',
-                            netcdf_path=netcdf_path)
+                            crop_type='all')
     
 df_sklearn_remapped = df_sklearn.copy()
 df_sklearn_remapped.insert(3, 'Crop type', '')
@@ -129,7 +130,7 @@ for key, value in mapping_dict.items():
     df_sklearn_remapped.loc[df_sklearn_remapped['Crop type'] == key, 'Label ID'] = value
 print(f"Crop types: {class_names}")
 
-# Drop the columns not ud for explainability
+# Drop the columns not used for explainability
 for key, value in explainability_crop_types.items():
     if not value:
         df_sklearn_remapped = df_sklearn_remapped[df_sklearn_remapped['Crop type'] != key]
@@ -214,7 +215,7 @@ shap.summary_plot(logistic_regression_shap_values, X_test, feature_names=df_plot
 print(y_test[0:20])
 ```
 
-```python jupyter={"outputs_hidden": true}
+```python
 sample_number = 5
 num_features = len(df_plot.columns[1:])
 explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=df_plot.columns[1:], class_names=class_names, discretize_continuous=False)
@@ -341,8 +342,8 @@ model = LDA(n_components = 8)
 X_lda = model.fit_transform(X_test, y_test)
 print('Explained variation per principal component (2D): {}'.format(model.explained_variance_ratio_))
 principalDf = pd.DataFrame(data = X_lda)
-finalDf = pd.concat([principalDf, df_sklearn_remapped[['Crop type']]], axis = 1)
-finalDf = finalDf.loc[finalDf['Crop type'].isin(crops)]
+# finalDf = pd.concat([principalDf, df_sklearn_remapped[['Crop type']]], axis = 1)
+# finalDf = finalDf.loc[finalDf['Crop type'].isin(crops)]
 ```
 
 ```python
@@ -509,6 +510,29 @@ data = data.loc[data['target'].isin(['Barley', 'Wheat', 'Forest', 'Potato'])]
 plt.figure(figsize=(24, 8))
 plt.xticks(rotation=90, horizontalalignment='center')
 ax = sns.lineplot(x='feature', y='weight', hue='target', data=data, ci='sd')
+```
+
+```python
+
+```
+
+```python
+from interpret.glassbox import ExplainableBoostingClassifier
+
+ebm = ExplainableBoostingClassifier()
+ebm.fit(X_train, y_train)
+```
+
+```python
+from interpret import show
+
+ebm_global = ebm.explain_global()
+show(ebm_global)
+```
+
+```python
+ebm_local = ebm.explain_local(X_test, y_test)
+show(ebm_local)
 ```
 
 ```python
